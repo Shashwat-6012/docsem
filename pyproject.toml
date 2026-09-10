@@ -1,6 +1,8 @@
 [project]
 name = "semdoc"
 version = "0.1.0"
+license = "MIT"
+license-files = ["LICENSE"]
 description = "A python module that converts input documents into Standardized Representations"
 readme = "README.md"
 requires-python = ">=3.14"
