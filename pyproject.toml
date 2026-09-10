@@ -1,5 +1,5 @@
 [project]
-name = "semdoc"
+name = "docsem"
 version = "0.1.0"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -9,7 +9,7 @@ requires-python = ">=3.14"
 dependencies = []
 
 [project.scripts]
-genrate = "semdoc:main"
+genrate = "docsem:main"
 
 [build-system]
 requires = ["uv_build>=0.12.12,<0.13.0"]
