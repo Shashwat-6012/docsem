@@ -22,6 +22,14 @@ from .exceptions import (
     DocumentNotFoundError,
 )
 
+import json
+from dataclasses import asdict
+from pathlib import Path
+
+
+from .extraction.factory import build_extractor
+from .extraction.base import ExtractionInput
+
 if TYPE_CHECKING:
     from .ir.document import DocumentIR
 
@@ -50,13 +58,14 @@ class DocSem:
             is used.
         """
         self.config = config or DocSemConfig()
+        self.extractor = build_extractor(self.config.extraction)
 
     def process(
         self,
         source: str | Path | bytes,
         *,
         filename: str | None = None,
-    ) -> DocumentIR:
+    ):
         """
         Process a document and return its DocumentIR.
 
@@ -80,22 +89,18 @@ class DocSem:
             If the document source is invalid.
         """
 
-        normalized_source = self._validate_source(
-            source,
-            filename=filename,
+        validated_source = self._validate_source(
+            source
         )
 
-        extracted = self._extract(normalized_source)
-
-        document_ir = self._build_document_ir(extracted)
-
-        return document_ir
+        # Step 1 - Extraction: Obtain text, bounding boxes, tables, etc.
+        extracted = self.extractor.extract(ExtractionInput(file_path=validated_source))
+        
+        return extracted
 
     def _validate_source(
         self,
-        source: str | Path | bytes,
-        *,
-        filename: str | None = None,
+        source: str | Path
     ):
         """
         Validate and normalize the input source.
@@ -103,15 +108,6 @@ class DocSem:
         This method performs basic input validation only.
         Actual document format detection belongs to the extraction layer.
         """
-
-        if isinstance(source, bytes):
-            if not source:
-                raise DocumentError("Document data is empty.")
-
-            return {
-                "data": source,
-                "filename": filename,
-            }
 
         if isinstance(source, (str, Path)):
             path = Path(source)
@@ -129,7 +125,7 @@ class DocSem:
             return path
 
         raise DocumentError(
-            "Unsupported source type. Expected a file path or bytes."
+            "Unsupported source type. Expected a file path."
         )
 
     def _extract(self, source):

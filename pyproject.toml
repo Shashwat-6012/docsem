@@ -6,7 +6,11 @@ license-files = ["LICENSE"]
 description = "A python module that converts input documents into Standardized Representations"
 readme = "README.md"
 requires-python = ">=3.14"
-dependencies = []
+dependencies = [
+    "azure-ai-formrecognizer>=3.3.3",
+    "azure-core>=1.41.0",
+    "dotenv>=0.9.9",
+]
 
 [project.scripts]
 generate = "docsem.cli:main"

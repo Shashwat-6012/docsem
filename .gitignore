@@ -43,3 +43,7 @@ Thumbs.db
 .idea/
 *.swp
 *~
+
+# Outputs and artifacts
+outputs/
+artifacts/
