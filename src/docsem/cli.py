@@ -1,16 +1,21 @@
-
 """Command-line interface for DocSem."""
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 from .api import DocSem
+from .config import DocSemConfig, ExtractorConfig, ProviderName
 from .exceptions import DocSemError
+
+load_dotenv()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -62,8 +67,27 @@ def main() -> int:
             f"Input file does not exist: {args.input_path}"
         )
 
+    azure_endpoint = os.environ.get("AZURE_ENDPOINT")
+    azure_api_key = os.environ.get("AZURE_API_KEY")
+
+    if not azure_endpoint or not azure_api_key:
+        parser.error(
+            "Missing AZURE_ENDPOINT or AZURE_API_KEY. "
+            "Set them in your environment or in a .env file."
+        )
+
     try:
-        docsem = DocSem()
+        config = DocSemConfig(
+            extraction=ExtractorConfig(
+                provider=ProviderName.AZURE,
+                options={
+                    "endpoint": azure_endpoint,
+                    "api_key": azure_api_key,
+                },
+            ),
+        )
+
+        docsem = DocSem(config=config)
         document_ir = docsem.process(args.input_path)
         output_json = serialize_document_ir(document_ir)
 
