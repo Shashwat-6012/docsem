@@ -30,6 +30,9 @@ from pathlib import Path
 from .extraction.factory import build_extractor
 from .extraction.base import ExtractionInput
 
+from .ir.build import build_document_ir
+from .render.document import render
+
 if TYPE_CHECKING:
     from .ir.document import DocumentIR
 
@@ -95,8 +98,13 @@ class DocSem:
 
         # Step 1 - Extraction: Obtain text, bounding boxes, tables, etc.
         extracted = self.extractor.extract(ExtractionInput(file_path=validated_source))
-        
-        return extracted
+
+        # Step 2 - Build the DocumentIR from the extracted data.
+        document_ir = build_document_ir(extracted)
+
+        rendered_document = render(document_ir)
+
+        return rendered_document
 
     def _validate_source(
         self,
@@ -126,42 +134,6 @@ class DocSem:
 
         raise DocumentError(
             "Unsupported source type. Expected a file path."
-        )
-
-    def _extract(self, source):
-        """
-        Execute the extraction stage.
-
-        Expected output may include:
-
-        - Text
-        - Bounding boxes
-        - Page numbers
-        - Headers
-        - Tables
-        - Images
-        - Reading order
-        - Page-level metadata
-
-        Implement this by delegating to your extraction layer.
-        """
-
-        raise NotImplementedError(
-            "Extraction implementation has not been configured."
-        )
-
-    def _build_document_ir(self, extracted) -> DocumentIR:
-        """
-        Execute the structuring stage.
-
-        Convert extracted document information into a DocumentIR.
-
-        This is where layout relationships, semantic relationships,
-        and document structure are resolved.
-        """
-
-        raise NotImplementedError(
-            "DocumentIR construction has not been implemented."
         )
 
     def __repr__(self) -> str:
