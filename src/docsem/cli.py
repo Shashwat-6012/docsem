@@ -88,8 +88,15 @@ def main() -> int:
         )
 
         docsem = DocSem(config=config)
-        document_ir = docsem.process(args.input_path)
-        output_json = serialize_document_ir(document_ir)
+        document = docsem.process(args.input_path)
+
+        print("Document Stats: \n")
+        print(document.stats)
+
+        print("Document Markdown : ")
+        print(document.to_markdown())
+
+        output_json = json.dumps(document.to_dict(), indent=2, ensure_ascii=False, default=str)
 
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
