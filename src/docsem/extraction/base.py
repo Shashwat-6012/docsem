@@ -3,7 +3,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
 from typing import Any, Optional
-
+import uuid
 
 # ---------- Input ----------
 
@@ -64,11 +64,13 @@ class BoundingBox:
         return self.y1 - self.y0
 
 
+
 # ---------- Text-like content ----------
 
 @dataclass
 class ExtractedBlock:
     """Any non-tabular content: paragraphs, headings, key-value pairs, image captions, etc."""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     type: BlockType
     content: str
     confidence: Optional[float] = None
@@ -88,6 +90,7 @@ class TableCell:
 class ExtractedTable:
     """A table: one header row and a list of data rows, order-preserved.
     No row/col indices — position is implicit in list order."""
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     header: list[TableCell]
     rows: list[list[TableCell]]
     bbox: Optional[BoundingBox] = None
@@ -98,6 +101,39 @@ class ExtractedTable:
     bbox_by_page: dict[int, BoundingBox] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
+# --- Custom Collection Classes (Inheriting from list) ---
+# Created for querying and filtering extracted blocks and tables more easily.
+
+class ExtractedBlockList(list):
+    """A list of ExtractedBlocks with built-in query helpers."""
+    
+    def get(self, block_id: str) -> Optional[Any]:
+        """Get a single block by its ID."""
+        return next((b for b in self if b.id == block_id), None)
+
+    def headings(self) -> list:
+        """Return blocks that represent headings."""
+        return [b for b in self if "heading" in str(b.type).lower()]
+
+    def paragraphs(self) -> list:
+        """Return blocks that represent paragraphs."""
+        return [b for b in self if "paragraph" in str(b.type).lower()]
+
+    def by_type(self, block_type: Any) -> list:
+        """Return blocks matching a specific type."""
+        return [b for b in self if b.type == block_type]
+
+
+class ExtractedTableList(list):
+    """A list of ExtractedTables with built-in query helpers."""
+    
+    def get(self, table_id: str) -> Optional[Any]:
+        """Get a single table by its ID."""
+        return next((t for t in self if t.id == table_id), None)
+
+    def multi_page(self) -> list:
+        """Return tables that span multiple pages."""
+        return [t for t in self if len(t.bbox_by_page) > 1]
 
 # ---------- Output ----------
 
@@ -110,6 +146,11 @@ class ExtractionResult:
     page_count: int = 0
     warnings: list[str] = field(default_factory=list)
     raw_response: Optional[Any] = None
+
+    def __post_init__(self):
+        # Automatically wrap standard lists into custom queryable lists on initialization
+        self.blocks = ExtractedBlockList(self.blocks)
+        self.tables = ExtractedTableList(self.tables)
 
 
 # ---------- Contract ----------
