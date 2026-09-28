@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import sys
 from dataclasses import asdict, is_dataclass
@@ -14,6 +15,7 @@ from dotenv import load_dotenv
 from .api import DocSem
 from .config import DocSemConfig, ExtractorConfig, ProviderName
 from .exceptions import DocSemError
+from .logging import enable_default_logging
 
 load_dotenv()
 
@@ -36,6 +38,12 @@ def build_parser() -> argparse.ArgumentParser:
         "-o",
         type=Path,
         help="Optional path to save the resulting DocumentIR as JSON.",
+    )
+
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Enable package debug logging to stderr.",
     )
 
     return parser
@@ -61,6 +69,9 @@ def main() -> int:
     """Run the DocSem command-line interface."""
     parser = build_parser()
     args = parser.parse_args()
+
+    if args.debug:
+        enable_default_logging(logging.DEBUG)
 
     if not args.input_path.is_file():
         parser.error(
@@ -89,14 +100,8 @@ def main() -> int:
 
         docsem = DocSem(config=config)
         document = docsem.process(args.input_path)
-
-        print("Document Stats: \n")
-        print(document.stats)
-
-        print("Document Markdown : ")
-        print(document.to_markdown())
-
-        output_json = json.dumps(document.to_dict(), indent=2, ensure_ascii=False, default=str)
+        
+        output_json = serialize_document_ir(document)
 
         if args.output:
             args.output.parent.mkdir(parents=True, exist_ok=True)
