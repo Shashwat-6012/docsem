@@ -1,3 +1,4 @@
+import logging
 from enum import Enum
 from dataclasses import dataclass, field
 from typing import Any
@@ -5,6 +6,8 @@ from typing import Any
 from .base import BaseExtractor
 from .providers.azure import AzureExtractor
 from .providers.paddle import PaddleOCRExtractor
+
+logger = logging.getLogger(__name__)
 
 
 class ProviderName(str, Enum):
@@ -21,6 +24,7 @@ class ExtractorConfig:
 def build_extractor(config: ExtractorConfig) -> BaseExtractor:
     """Single composition point: knows about every provider so nothing
     else in the codebase has to."""
+    logger.debug("building extractor for provider %s", config.provider)
     if config.provider == ProviderName.AZURE:
         return AzureExtractor(
             endpoint=config.options["endpoint"],

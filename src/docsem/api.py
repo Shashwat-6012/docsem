@@ -13,25 +13,24 @@ The concrete implementations remain hidden behind this API.
 
 from __future__ import annotations
 
+import logging
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from ._warnings import WarningAggregator
 from .config import DocSemConfig
 from .exceptions import (
     DocumentError,
     DocumentNotFoundError,
 )
 
-import json
-from dataclasses import asdict
-from pathlib import Path
-
-
 from .extraction.factory import build_extractor
 from .extraction.base import ExtractionInput
 
-from .ir.build import build_document_ir
-from .render.document import render
+from .ir.build import IRBuilder
+
+logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from .ir.document import DocumentIR
@@ -60,15 +59,14 @@ class DocSem:
             Optional configuration. If omitted, default configuration
             is used.
         """
-        self.config = config or DocSemConfig()
+        self.config = config or DocSemConfig.default()
         self.extractor = build_extractor(self.config.extraction)
+        self.builder = IRBuilder()
 
     def process(
         self,
-        source: str | Path | bytes,
-        *,
-        filename: str | None = None,
-    ):
+        source: str | Path
+    ) -> DocumentIR:
         """
         Process a document and return its DocumentIR.
 
@@ -76,10 +74,6 @@ class DocSem:
         ----------
         source:
             A path to a document or raw document bytes.
-
-        filename:
-            Optional filename for byte sources. Useful for format
-            detection when the file extension is unavailable.
 
         Returns
         -------
@@ -92,24 +86,42 @@ class DocSem:
             If the document source is invalid.
         """
 
-        validated_source = self._validate_source(
-            source
-        )
+        validated_source = self._validate_source(source)
+        doc_id = validated_source.name
+        start = time.perf_counter()
+        aggregator = WarningAggregator(logger, doc_id)
+        document_ir = None
+        page_count = None
 
-        # Step 1 - Extraction: Obtain text, bounding boxes, tables, etc.
-        extracted = self.extractor.extract(ExtractionInput(file_path=validated_source))
+        try:
+            # Step 1 - Extraction: Obtain text, bounding boxes, tables, etc.
+            extracted = self.extractor.extract(ExtractionInput(file_path=validated_source))
+            page_count = getattr(extracted, "page_count", None)
 
-        # Step 2 - Build the DocumentIR from the extracted data.
-        document_ir = build_document_ir(extracted)
+            if page_count is not None and page_count > 0 and not getattr(extracted, "blocks", None) and not getattr(extracted, "tables", None):
+                for page_no in range(1, page_count + 1):
+                    aggregator.add("no_text_layer", page_no)
 
-        rendered_document = render(document_ir)
+            start_extra = {"docsem_doc_id": doc_id}
+            if page_count is not None:
+                start_extra["docsem_pages_total"] = page_count
+            logger.info("document processing started", extra=start_extra)
 
-        return rendered_document
+            # Step 2 - Build the DocumentIR from the extracted data.
+            document_ir = self.builder.build(extracted)
+            return document_ir
+        finally:
+            aggregator.flush()
+            if document_ir is not None:
+                finish_extra = {"docsem_doc_id": doc_id}
+                if page_count is not None:
+                    finish_extra["docsem_pages_total"] = page_count
+                finish_extra["docsem_pages_ok"] = 1
+                finish_extra["docsem_pages_failed"] = 0
+                finish_extra["docsem_duration_ms"] = int((time.perf_counter() - start) * 1000)
+                logger.info("document processing finished", extra=finish_extra)
 
-    def _validate_source(
-        self,
-        source: str | Path
-    ):
+    def _validate_source(self, source: str | Path) -> Path:
         """
         Validate and normalize the input source.
 

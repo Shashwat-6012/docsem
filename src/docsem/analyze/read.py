@@ -1,183 +1,269 @@
 """
-Analyzers for DocumentIR construction: ReadingOrderAnalyzer and
-TableContinuationAnalyzer.
+Reading-order analysis for DocumentIR construction.
 
-ReadingOrderAnalyzer establishes the coordinate system (order_index)
-that TableContinuationAnalyzer and DuplicateAnalyzer both express their
-logic in. TableContinuationAnalyzer finds cross-page table fragments
-that are really one logical table, using that ordering to reason about
-adjacency and "what's in between."
+ReadingOrderAnalyzer establishes the coordinate system (`order_index`)
+that downstream analyzers such as TableContinuationAnalyzer and
+DuplicateAnalyzer use to reason about node adjacency and document order.
 
-Both are Analyzer subclasses (see analyzer_base.py) — pure with respect
-to `IRNode.source`: nodes in, relations out. Neither mutates the raw
-ExtractedBlock/ExtractedTable data — only the fields each analyzer
-declares in `owns_fields` (order_index; is_continuation_of), per the
-wrap-don't-replace principle.
+It is a mandatory first pipeline step. It runs before the pluggable
+analyzers and annotates the existing IRNode objects in place.
+
+No relations are produced by this analyzer. `order_index` itself is the
+canonical representation of reading order.
 """
 
 from __future__ import annotations
-import re
+
+import logging
 from typing import ClassVar, Optional
 
-from ..ir.document import IRNode, IRRelation, RelationType, NodeKind
+from ..ir.document import DocumentIR, Node
 from .base import Analyzer
+from ..extraction.base import ExtractionResult
 
-# BlockType lives in your shared extraction-types module (see document_ir.py's
-# top-of-file import comment). Import it from wherever that module actually is:
-#     from extraction_types import BlockType
-# Left as a plain name here so this module has no hard dependency on the
-# import path; set it once at the call site or adjust the import above.
-try:
-    from ..extraction.base import BlockType  # your actual module name
-except ImportError:
-    BlockType = None  # heading-detection veto degrades gracefully to "no heading found"
+logger = logging.getLogger(__name__)
 
 
-# =====================================================================
-# Pass 1: compute_reading_order
-# =====================================================================
+# ---------------------------------------------------------------------
+# Configuration
+# ---------------------------------------------------------------------
 
-# Two bboxes are considered "same line" if their y0 values fall within
-# this fraction of page height of each other. Tune per your documents;
-# scanned/OCR'd pages tend to need a slightly larger tolerance than
-# clean digital-PDF text layers.
+# Two bounding boxes are considered to be on the same line when their
+# y0 values fall within this fraction of the page height.
 _Y_TOLERANCE_FRACTION = 0.01
 
-# Minimum horizontal gap (as a fraction of page width) between two
-# clusters of content for them to be treated as separate columns.
+# Minimum horizontal gap between clusters of content for them to be
+# treated as separate columns.
 _COLUMN_GAP_FRACTION = 0.04
 
 
-def _bbox(node: IRNode):
-    """Every source type (ExtractedBlock, ExtractedTable) carries `.bbox`."""
-    return node.source.bbox
+# ---------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------
+
+def _bbox(
+    document_ir: DocumentIR,
+    node: Node,
+):
+    """Resolve a node's raw extraction object and return its bounding box."""
+    source = document_ir.resolve(node)
+    return source.bbox if source is not None else None
 
 
-def _detect_columns(page_nodes: list[IRNode]) -> Optional[list[tuple[float, float]]]:
+def _detect_columns(
+    document_ir: DocumentIR,
+    page_nodes: list[Node],
+) -> Optional[list[tuple[float, float]]]:
     """
-    Best-effort column detection for one page. Returns a list of
-    (x0, x1) column ranges sorted left-to-right, or None if the page
-    looks single-column (don't force column logic where it isn't needed).
+    Best-effort column detection for one page.
 
-    Heuristic: sort nodes by x0, then walk them looking for a gap between
-    one node's x1 and the next node's x0 that's wide enough to be a
-    column gutter rather than normal inter-word/inter-block spacing.
-    This is intentionally simple — it will misfire on unusual layouts
-    (rotated text, sidebars, pull-quotes). Treat it as a heuristic to
-    refine once you see real failures, not a robust layout parser.
+    Returns:
+        A list of `(x0, x1)` column ranges sorted left-to-right,
+        or `None` when the page appears to be single-column.
+
+    This is intentionally heuristic rather than a full layout parser.
     """
-    boxes = sorted((_bbox(n) for n in page_nodes if _bbox(n) is not None), key=lambda b: b.x0)
+
+    boxes = sorted(
+        (
+            box
+            for node in page_nodes
+            if (box := _bbox(document_ir, node)) is not None
+        ),
+        key=lambda box: box.x0,
+    )
+
     if len(boxes) < 2:
         return None
 
-    # Merge boxes into horizontal-range clusters, splitting where the gap
-    # between clusters exceeds the column-gap threshold.
+    # Group boxes into horizontal clusters. A sufficiently large gap
+    # indicates a likely column gutter.
     clusters: list[list] = [[boxes[0]]]
-    for b in boxes[1:]:
-        prev_cluster = clusters[-1]
-        prev_max_x1 = max(x.x1 for x in prev_cluster)
-        gap = b.x0 - prev_max_x1
+
+    for box in boxes[1:]:
+        previous_cluster = clusters[-1]
+
+        previous_max_x1 = max(
+            existing.x1
+            for existing in previous_cluster
+        )
+
+        gap = box.x0 - previous_max_x1
+
         if gap > _COLUMN_GAP_FRACTION:
-            clusters.append([b])
+            clusters.append([box])
         else:
-            prev_cluster.append(b)
+            previous_cluster.append(box)
 
     if len(clusters) < 2:
-        return None  # single column — nothing to do
+        return None
 
-    # Require the "columns" to each span a meaningful vertical range and
-    # not just be two unrelated small elements (e.g. a page number next
-    # to a stray mark). Cheap sanity check: each cluster should contain
-    # more than one box, OR span a reasonable fraction of page height.
-    ranges = []
+    # Remove clusters that are probably unrelated small elements.
+    columns: list[tuple[float, float]] = []
+
     for cluster in clusters:
-        x0 = min(x.x0 for x in cluster)
-        x1 = max(x.x1 for x in cluster)
-        y_span = max(x.y1 for x in cluster) - min(x.y0 for x in cluster)
+        x0 = min(box.x0 for box in cluster)
+        x1 = max(box.x1 for box in cluster)
+
+        y_span = (
+            max(box.y1 for box in cluster)
+            - min(box.y0 for box in cluster)
+        )
+
         if len(cluster) > 1 or y_span > 0.2:
-            ranges.append((x0, x1))
+            columns.append((x0, x1))
 
-    return ranges if len(ranges) >= 2 else None
+    return columns if len(columns) >= 2 else None
 
 
-def _sort_key_within_page(node: IRNode, columns: Optional[list[tuple[float, float]]]):
+def _sort_key_within_page(
+    document_ir: DocumentIR,
+    node: Node,
+    columns: Optional[list[tuple[float, float]]],
+):
     """
-    Sort key for a node within a single page.
+    Return the reading-order sort key for a node on a single page.
 
-    Single-column: (y0-bucket, x0) — top-to-bottom, tie-break left-to-right.
-    Multi-column:  (column_index, y0-bucket, x0) — walk column 0 fully
-                   top-to-bottom, then column 1, etc. This is the standard
-                   "read left column, then right column" convention; if
-                   your documents interleave differently, this is the
-                   function to change.
+    Single-column:
+        (column, y_bucket, x0)
+
+    Multi-column:
+        (column_index, y_bucket, x0)
+
+    Nodes without a bounding box are deterministically placed at the
+    end of the page.
     """
-    box = _bbox(node)
+
+    box = _bbox(document_ir, node)
+
     if box is None:
-        # No bbox (shouldn't normally happen) — push to the end of the
-        # page deterministically rather than crashing or sorting randomly.
-        return (len(columns) if columns else 0, float("inf"), float("inf"))
+        # Missing bbox -> last within the page.
+        return (
+            len(columns) if columns else 0,
+            float("inf"),
+            float("inf"),
+        )
 
-    y_bucket = round(box.y0 / _Y_TOLERANCE_FRACTION)
+    y_bucket = round(
+        box.y0 / _Y_TOLERANCE_FRACTION
+    )
 
     if not columns:
-        return (0, y_bucket, box.x0)
+        return (
+            0,
+            y_bucket,
+            box.x0,
+        )
 
-    # Assign this box to whichever column range its x0 falls closest to.
-    col_index = min(
+    # Assign the node to the column whose left boundary is closest
+    # to the node's x0.
+    column_index = min(
         range(len(columns)),
-        key=lambda i: abs(box.x0 - columns[i][0]),
+        key=lambda i: abs(
+            box.x0 - columns[i][0]
+        ),
     )
-    return (col_index, y_bucket, box.x0)
 
+    return (
+        column_index,
+        y_bucket,
+        box.x0,
+    )
+
+
+# ---------------------------------------------------------------------
+# Analyzer
+# ---------------------------------------------------------------------
 
 class ReadingOrderAnalyzer(Analyzer):
     """
-    Pass 1 — establishes the coordinate system (order_index) that
-    TableContinuationAnalyzer and DuplicateAnalyzer both express their
-    logic in. See module docstring for why this must run first.
+    Mandatory first analyzer in the pipeline.
 
-    Produces NO relations. order_index is a pure annotation on each
-    node — bbox + order_index is already a complete, reconstruction-
-    ready representation of position, so a parallel edge-list encoding
-    of the same sequence (e.g. a READING_ORDER_NEXT relation per
-    consecutive pair) would just be a second, more expensive copy of
-    information the field already holds. sorted(nodes, key=lambda n:
-    n.order_index) IS the traversal; no graph walk needed.
+    Establishes `order_index` for every node in the DocumentIR.
+
+    The analyzer:
+
+    1. Groups nodes by page.
+    2. Detects whether each page appears to contain columns.
+    3. Sorts nodes according to their spatial reading order.
+    4. Assigns a globally increasing `order_index`.
+    5. Mutates the existing Node objects in place.
+    6. Returns the same DocumentIR.
+
+    No relations are produced.
+
+    `order_index` is the canonical representation of document traversal:
+
+        sorted(
+            document_ir.nodes,
+            key=lambda node: node.order_index,
+        )
+
+    is sufficient to reconstruct the reading sequence.
     """
 
     name: ClassVar[str] = "reading_order"
-    requires: ClassVar[tuple[str, ...]] = ()
-    owns_fields: ClassVar[tuple[str, ...]] = ("order_index",)
 
-    def run(self, nodes: list[IRNode], relations: list[IRRelation]) -> list[IRRelation]:
+    owns_fields: ClassVar[tuple[str, ...]] = (
+        "order_index",
+    )
+
+    def run(
+        self,
+        document_ir: DocumentIR
+    ) -> DocumentIR:
         """
-        Assigns `order_index` on each node IN PLACE (mutates the IRNode
-        objects you pass in — these are your IR's own node objects, not
-        raw source data, so this is consistent with wrap-don't-replace:
-        we're annotating the address, not the content).
+        Assign reading-order indices to all nodes.
 
-        Nodes without a usable bbox are ordered last within their page,
-        deterministically, rather than raising — malformed/missing bbox
-        data from the provider shouldn't crash the whole pipeline.
-
-        Returns an empty list — see class docstring for why this
-        analyzer emits no relations.
+        Nodes without a usable bounding box are placed deterministically
+        at the end of their respective page rather than causing the
+        pipeline to fail.
         """
-        by_page: dict[int, list[IRNode]] = {}
-        for n in nodes:
-            by_page.setdefault(n.page, []).append(n)
 
-        ordered: list[IRNode] = []
-        for page_num in sorted(by_page.keys()):
+        logger.debug("assigning reading order for %d nodes", len(document_ir.nodes))
+
+        # -------------------------------------------------------------
+        # Group nodes by page
+        # -------------------------------------------------------------
+
+        by_page: dict[int, list[Node]] = {}
+
+        for node in document_ir.nodes:
+            by_page.setdefault(
+                node.page,
+                [],
+            ).append(node)
+
+        # -------------------------------------------------------------
+        # Establish spatial order page-by-page
+        # -------------------------------------------------------------
+
+        ordered: list[Node] = []
+
+        for page_num in sorted(by_page):
             page_nodes = by_page[page_num]
-            columns = _detect_columns(page_nodes)
+
+            columns = _detect_columns(
+                document_ir,
+                page_nodes,
+            )
+
             page_nodes_sorted = sorted(
                 page_nodes,
-                key=lambda n: _sort_key_within_page(n, columns),
+                key=lambda node: _sort_key_within_page(
+                    document_ir,
+                    node,
+                    columns,
+                ),
             )
+
             ordered.extend(page_nodes_sorted)
 
-        for i, node in enumerate(ordered):
-            node.order_index = i
+        # -------------------------------------------------------------
+        # Assign global reading-order indices
+        # -------------------------------------------------------------
 
-        return []
+        for order_index, node in enumerate(ordered):
+            node.order_index = order_index
+
+        return document_ir

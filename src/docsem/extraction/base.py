@@ -70,9 +70,9 @@ class BoundingBox:
 @dataclass
 class ExtractedBlock:
     """Any non-tabular content: paragraphs, headings, key-value pairs, image captions, etc."""
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     type: BlockType
     content: str
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     confidence: Optional[float] = None
     bbox: Optional[BoundingBox] = None
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -90,9 +90,9 @@ class TableCell:
 class ExtractedTable:
     """A table: one header row and a list of data rows, order-preserved.
     No row/col indices — position is implicit in list order."""
-    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     header: list[TableCell]
     rows: list[list[TableCell]]
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     bbox: Optional[BoundingBox] = None
     # bbox_by_page covers tables that span multiple pages: page_number -> BoundingBox
     # for the portion of the table on that page. Populated whenever a table's
@@ -139,8 +139,8 @@ class ExtractedTableList(list):
 
 @dataclass
 class ExtractionResult:
-    blocks: list[ExtractedBlock]
-    tables: list[ExtractedTable] = field(default_factory=list)
+    blocks: ExtractedBlockList = field(default_factory=ExtractedBlockList)
+    tables: ExtractedTableList = field(default_factory=ExtractedTableList)
     raw_text: str = ""
     provider: str = ""
     page_count: int = 0

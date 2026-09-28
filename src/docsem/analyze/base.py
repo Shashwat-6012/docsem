@@ -28,18 +28,22 @@ the loop itself doesn't need to know why.
 """
 
 from __future__ import annotations
+import logging
 from abc import ABC, abstractmethod
 from typing import ClassVar
 
-from ..ir.document import IRNode, IRRelation
+from ..extraction.base import ExtractionResult
+from ..ir.document import DocumentIR
+
+logger = logging.getLogger(__name__)
 
 
 class Analyzer(ABC):
     """
     Base class for all DocumentIR analysis stages.
 
-    Subclasses implement `run()`. Two class-level declarations exist so
-    a pipeline runner can validate ordering and mutation scope without
+    Subclasses implement `run()`. Class-level declarations let the
+    pipeline validate ordering and mutation scope without
     reading each analyzer's implementation:
 
     - `requires`: names of other analyzers (by `name`) that must have
@@ -57,54 +61,38 @@ class Analyzer(ABC):
     owns_fields: ClassVar[tuple[str, ...]] = ()
 
     @abstractmethod
-    def run(self, nodes: list[IRNode], relations: list[IRRelation]) -> list[IRRelation]:
+    def run(
+        self,
+        document_ir: DocumentIR
+    ) -> DocumentIR:
         """
         Execute this analyzer.
 
-        `nodes` — the full node list built so far. May be mutated ONLY on
-        the fields listed in `owns_fields` (e.g. ReadingOrderAnalyzer may
-        write `order_index`, nothing else).
-
-        `relations` — every relation produced by analyzers that ran
-        before this one. Read-only: an analyzer should never mutate or
-        remove entries from this list, only return new ones of its own.
-
-        Returns: the list of new IRRelation objects this analyzer
-        produced. The pipeline runner appends these to the running total.
+        `document_ir` is the complete IR, including relations from earlier analyzers.
+        Return the updated IR without removing existing relations.
         """
         raise NotImplementedError
 
 
 class AnalyzerPipeline:
-    """
-    Runs a sequence of Analyzers in order, checking `requires` before
-    each one and accumulating relations. This is the thing you actually
-    call to build a DocumentIR's relations from a node list.
-
-    Deliberately dumb — no parallelism, no retry logic. Pass 2 and 3
-    don't depend on each other (per the design discussion), so if you
-    want concurrency later, that's a different runner; this one just
-    guarantees correctness of the `requires` ordering.
-    """
+    """Run analyzers sequentially, passing each the complete updated IR."""
 
     def __init__(self, analyzers: list[Analyzer]):
-        self._analyzers = analyzers
-        self._validate_ordering()
+        self._analyzers = list(analyzers)
 
-    def _validate_ordering(self) -> None:
+    def run(
+        self,
+        document_ir: DocumentIR
+    ) -> DocumentIR:
+        logger.debug("running %d analyzers", len(self._analyzers))
         completed: set[str] = set()
         for analyzer in self._analyzers:
-            missing = [r for r in analyzer.requires if r not in completed]
+            missing = set(analyzer.requires) - completed
             if missing:
+                names = ", ".join(sorted(missing))
                 raise ValueError(
-                    f"{analyzer.name} requires {missing} to run first, "
-                    f"but the pipeline order given doesn't satisfy that."
+                    f"Analyzer {analyzer.name!r} requires earlier analyzer(s): {names}"
                 )
+            document_ir = analyzer.run(document_ir)
             completed.add(analyzer.name)
-
-    def run(self, nodes: list[IRNode]) -> list[IRRelation]:
-        relations: list[IRRelation] = []
-        for analyzer in self._analyzers:
-            new_relations = analyzer.run(nodes, relations)
-            relations.extend(new_relations)
-        return relations
+        return document_ir
