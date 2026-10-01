@@ -10,17 +10,20 @@ from __future__ import annotations
 import logging
 
 from ..analyze.base import Analyzer, AnalyzerPipeline
-from ..analyze.table import TableContinuationAnalyzer
+from ..analyze.table import TableStructureAnalyzer, TableContinuationAnalyzer
 from ..extraction.base import ExtractionResult
 from .document import DocumentIR, Node, NodeKind, NodeSource
 from ..analyze.read import ReadingOrderAnalyzer
+from ..llm import create_provider
 
 logger = logging.getLogger(__name__)
 
 
 class IRBuilder:
     def __init__(self, analyzers: list[Analyzer] | None = None):
-        configured = analyzers if analyzers is not None else [TableContinuationAnalyzer()]
+        self.provider = create_provider("gemini")
+        configured = analyzers if analyzers is not None else [TableStructureAnalyzer(provider=self.provider),
+                                                              TableContinuationAnalyzer(provider=self.provider)]
         configured = [analyzer for analyzer in configured if analyzer.name != "reading_order"]
         self.pipeline = AnalyzerPipeline([ReadingOrderAnalyzer(), *configured])
 
