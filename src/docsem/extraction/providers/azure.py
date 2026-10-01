@@ -210,14 +210,12 @@ class AzureExtractor(BaseExtractor):
             grid = self._build_grid(table)
 
             header_row_indices = self._header_row_indices(table)
-            header: list[TableCell] = []
+            header_rows: list[list[TableCell]] = []
             data_rows: list[list[TableCell]] = []
 
             for row_idx, row in enumerate(grid):
                 if row_idx in header_row_indices:
-                    # Merge multiple header rows into one flat header, left-to-right,
-                    # top-to-bottom, in case the table has a multi-row header.
-                    header.extend(row)
+                    header_rows.append(row)
                 else:
                     data_rows.append(row)
 
@@ -240,7 +238,7 @@ class AzureExtractor(BaseExtractor):
 
             tables.append(
                 ExtractedTable(
-                    header=header,
+                    header=header_rows,
                     rows=data_rows,
                     bbox=primary_bbox,
                     bbox_by_page=bbox_by_page,
