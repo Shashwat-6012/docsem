@@ -5,7 +5,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 description = "A python module that converts input documents into Standardized Representations"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "azure-ai-formrecognizer>=3.3.3",
     "azure-core>=1.41.0",
@@ -14,6 +14,20 @@ dependencies = [
 
 [project.scripts]
 generate = "docsem.cli:main"
+
+[project.optional-dependencies]
+gemini = [
+    "google-genai>=2.25.0",
+]
+llama = ["llama-cpp-python>=0.3", "huggingface-hub"]
+
+[tool.uv.sources]
+llama-cpp-python = { index = "llama-cpu" }
+
+[[tool.uv.index]]
+name = "llama-cpu"
+url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+explicit = true
 
 [build-system]
 requires = ["uv_build>=0.12.12,<0.13.0"]
