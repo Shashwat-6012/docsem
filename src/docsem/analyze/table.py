@@ -1,37 +1,36 @@
 """
-Analyzers for DocumentIR construction: TableContinuationAnalyzer.
+Analyzers for DocumentIR construction: TableContinuationAnalyzer and TableStructureAnalyzer.
 
-TableContinuationAnalyzer finds cross-page table fragments
-that are really one logical table, using the reading order to reason about
-adjacency and "what's in between."
+TableContinuationAnalyzer finds cross-page table fragments that are really one
+logical table, judging from table data only (headers, row samples, deterministic
+facts). It emits TABLE_CONTINUATION relations and never modifies raw tables.
 
-Both are Analyzer subclasses (see analyzer_base.py) — pure with respect
-to `IRNode.source`: nodes in, relations out. Neither mutates the raw
-ExtractedBlock/ExtractedTable data — only the fields each analyzer
-declares in `owns_fields` (order_index; is_continuation_of), per the
-wrap-don't-replace principle.
+TableStructureAnalyzer repairs header/row column-count inconsistencies in place
+(rules first, LLM for the remainder) and records an audit trail in
+table.metadata["structure_repair"].
+
+Both are Analyzer subclasses (see base.py), per the wrap-don't-replace principle
+for everything except the fields they explicitly document as mutated.
 """
 
 from __future__ import annotations
-import logging
-from typing import ClassVar
-from concurrent.futures import ThreadPoolExecutor
-
-from ..extraction.base import TableCell, ExtractedTable
-from ..ir.document import DocumentIR, Relation, RelationType
-from .base import Analyzer
-from ._continuation import Candidate, find_candidates, between_snippets
-from ._continuation import texts, build_continuation_messages, continuation_schema
 
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Any, ClassVar, Optional
 
+from ..extraction.base import ExtractedTable, TableCell
+from ..ir.document import DocumentIR, Relation, RelationType
 from ..llm import LLMError, LLMProvider
-from ._structure import detect_issues
-from ._structure import (
-    build_header_messages, build_row_messages, header_schema, row_schema,
+from ._continuation import (
+    Candidate, build_continuation_messages, compute_facts,
+    continuation_schema, find_candidates, texts,
 )
+from ._structure import (
+    build_header_messages, build_row_messages, detect_issues, header_schema, row_schema,
+)
+from .base import Analyzer
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +39,9 @@ METADATA_KEY = "structure_repair"
 _PLACEHOLDER = re.compile(
     r"^(|unknown|none|null|n/a|unnamed:?[ _]?\d*|col(umn)?[ _]?\d+)$", re.IGNORECASE
 )
+
+# Self-reported certainty -> probability of the stated answer (coarse buckets, not calibrated).
+_CERTAINTY = {"certain": 0.95, "likely": 0.75, "unsure": 0.55}
 
 
 def _is_placeholder(text: str) -> bool:
@@ -50,8 +52,8 @@ def _texts(cells: list[TableCell]) -> list[str]:
     return [c.content for c in cells]
 
 
-def _cells(texts: list[str]) -> list[TableCell]:
-    return [TableCell(content=t) for t in texts]  # LLM output -> confidence None
+def _cells(values: list[str]) -> list[TableCell]:
+    return [TableCell(content=t) for t in values]  # LLM output -> confidence None
 
 
 def _is_str_list(value: Any, n: int) -> bool:
@@ -63,14 +65,35 @@ def _same_content(original: list[str], fixed: list[str]) -> bool:
     squash = lambda cells: "".join("".join(cells).split())
     return squash(original) == squash(fixed)
 
+
+def _generate_json(
+    provider: LLMProvider, messages, schema, attempts: int, label: str = ""
+) -> Optional[dict]:
+    """Call the provider with retries; returns a dict or None. `label` ties log lines to a candidate."""
+    for attempt in range(1, attempts + 1):
+        try:
+            data = provider.generate_json(messages, schema)
+        except LLMError as e:
+            logger.warning("[%s] LLM attempt %d/%d failed: %s", label, attempt, attempts, e)
+            continue
+        if isinstance(data, dict):
+            logger.debug("[%s] LLM verdict: %s", label, data)
+            return data
+        logger.warning("[%s] LLM attempt %d/%d returned non-dict", label, attempt, attempts)
+    return None
+
+
 class TableContinuationAnalyzer(Analyzer):
     """
     Finds cross-page table continuations.
 
     1. Candidates (code): consecutive tables in reading order, consecutive pages,
        same trusted column count.
-    2. Every candidate is judged by the LLM from headers (if any) and rows.
-    3. Emits a TABLE_CONTINUATION relation for each verdict above `emit_floor`;
+    2. Every candidate is judged by the LLM from headers and rows only, plus a few
+       deterministic facts (header relation, incrementing numbering). Text between
+       the fragments is not used.
+    3. The LLM's certainty label maps to a fixed probability. A TABLE_CONTINUATION
+       relation is emitted for each verdict at or above `emit_floor`;
        relation.confidence = P(continuation), metadata["status"] in
        likely | needs_review | unlikely, plus the LLM's reason, for user verification.
 
@@ -86,7 +109,7 @@ class TableContinuationAnalyzer(Analyzer):
         provider: Optional[LLMProvider] = None,
         sample_rows: int = 3,
         emit_floor: float = 0.15,     # 0.0 = emit every candidate
-        accept_at: float = 0.8,
+        accept_at: float = 0.7,       # "likely"/"certain" continuation
         review_at: float = 0.4,
         attempts: int = 2,
         max_workers: int = 4,         # 1 = sequential
@@ -111,19 +134,24 @@ class TableContinuationAnalyzer(Analyzer):
         if not todo:
             return document_ir
 
-        # Prompts are built here (touches the IR); only the LLM calls run in threads.
-        jobs = [(c, self._messages(document_ir, c)) for c in todo]
+        # Prompts are built up front; only the LLM calls run in threads.
+        jobs = [(c, *self._prepare(c)) for c in todo]
+        schema = continuation_schema()
         with ThreadPoolExecutor(max_workers=max(1, self.max_workers)) as pool:
-            verdicts = list(pool.map(lambda j: self._ask(j[1], continuation_schema()), jobs))
+            verdicts = list(pool.map(
+                lambda j: self._ask(j[1], schema, f"{j[0].prev.id}->{j[0].nxt.id}"), jobs
+            ))
 
-        for (c, _), data in zip(jobs, verdicts):
+        for (c, _, facts), data in zip(jobs, verdicts):
             p = self._probability(data)
             if p is None:
                 logger.warning("no usable verdict for %s -> %s", c.prev.id, c.nxt.id)
                 continue
             status = ("likely" if p >= self.accept_at
-                    else "needs_review" if p >= self.review_at else "unlikely")
-            logger.info("continuation %s -> %s: %.2f (%s)", c.prev.id, c.nxt.id, p, status)
+                      else "needs_review" if p >= self.review_at else "unlikely")
+            logger.info("continuation %s -> %s: %.2f (%s) | %s | %s",
+                        c.prev.id, c.nxt.id, p, status, facts["header_relation"],
+                        data.get("reason", ""))
             if p < self.emit_floor:
                 continue
             document_ir.relations.append(
@@ -136,43 +164,40 @@ class TableContinuationAnalyzer(Analyzer):
                     metadata={
                         "status": status,
                         "reason": str(data.get("reason", "")),
+                        "certainty": data.get("certainty"),
                         "n_cols": c.n_cols,
                         "has_header": [bool(c.prev_table.header), bool(c.next_table.header)],
+                        "header_relation": facts["header_relation"],
+                        "incrementing_columns": facts["incrementing_columns"],
                     },
                 )
             )
         return document_ir
 
-    def _messages(self, ir: DocumentIR, c: Candidate) -> list[dict]:
+    def _prepare(self, c: Candidate) -> tuple[list[dict], dict]:
         k = self.sample_rows
-        return build_continuation_messages(
-            prev_header=texts(c.prev_table.header),
-            prev_tail=texts(c.prev_table.rows[-k:]),
-            next_header=texts(c.next_table.header),
-            next_head=texts(c.next_table.rows[:k]),
-            n_cols=c.n_cols,
-            between=between_snippets(ir, c),
+        prev_header, next_header = texts(c.prev_table.header), texts(c.next_table.header)
+        prev_tail, next_head = texts(c.prev_table.rows[-k:]), texts(c.next_table.rows[:k])
+        facts = compute_facts(prev_header, prev_tail, next_header, next_head)
+        messages = build_continuation_messages(
+            prev_header=prev_header, prev_tail=prev_tail,
+            next_header=next_header, next_head=next_head,
+            n_cols=c.n_cols, facts=facts,
         )
+        return messages, facts
 
     @staticmethod
     def _probability(data: Optional[dict]) -> Optional[float]:
+        """P(continuation) from the boolean answer and the coarse certainty bucket."""
         if not data or not isinstance(data.get("is_continuation"), bool):
             return None
-        try:
-            conf = max(0.0, min(1.0, float(data.get("confidence", 0.5))))
-        except (TypeError, ValueError):
-            conf = 0.5
-        return conf if data["is_continuation"] else 1.0 - conf
+        p = _CERTAINTY.get(data.get("certainty"), _CERTAINTY["unsure"])
+        return p if data["is_continuation"] else 1.0 - p
 
-    def _ask(self, messages, schema) -> Optional[dict]:
-        for attempt in range(1, self.attempts + 1):
-            try:
-                data = self.provider.generate_json(messages, schema)  # type: ignore[union-attr]
-                if isinstance(data, dict):
-                    return data
-            except LLMError as e:
-                logger.warning("LLM attempt %d/%d failed: %s", attempt, self.attempts, e)
-        return None
+    def _ask(self, messages, schema, label: str = "") -> Optional[dict]:
+        return _generate_json(self.provider, messages, schema, self.attempts, label)  # type: ignore[arg-type]
+
+
 class TableStructureAnalyzer(Analyzer):
     """
     1. Deterministically flag header/row column-count inconsistencies.
@@ -209,13 +234,10 @@ class TableStructureAnalyzer(Analyzer):
         issues = detect_issues(table.header, table.rows)
         if issues is None:
             return
-        
+
         logger.info("table %s flagged: %d expected cols, %d bad header rows, %d bad data rows",
-            table.id,
-            issues.expected_cols,
-            len(issues.bad_header_indices),
-            len(issues.bad_row_indices),
-        )
+                    table.id, issues.expected_cols,
+                    len(issues.bad_header_indices), len(issues.bad_row_indices))
 
         n = issues.expected_cols
         record = self._record(table, n)
@@ -265,32 +287,35 @@ class TableStructureAnalyzer(Analyzer):
         record.setdefault("unresolved_rows", [])
         return record
 
-    # ---- header ------------------------------------------------------------
-    def _repair_header(
-        self, table: ExtractedTable, n: int
+    # ---- header (one level / row at a time) --------------------------------
+    def _repair_header_row(
+        self, table: ExtractedTable, i: int, n: int
     ) -> tuple[Optional[list[TableCell]], Optional[str]]:
-        header = table.header
+        row = table.header[i]
 
         # Rule: extra trailing placeholder columns -> drop them (keeps original cells/confidence).
-        if len(header) > n and all(_is_placeholder(c.content) for c in header[n:]):
-            return header[:n], "rule"
+        if len(row) > n and all(_is_placeholder(c.content) for c in row[n:]):
+            return row[:n], "rule"
 
-        # An empty header would force the model to invent every column name.
-        if self.provider is None or not header:
+        # An empty header row would force the model to invent every column name.
+        if self.provider is None or not row:
             return None, None
 
         sample = [_texts(r) for r in table.rows if len(r) == n][: self.max_sample_rows]
-        data = self._ask(build_header_messages(_texts(header), sample, n), header_schema(n))
+        data = self._ask(
+            build_header_messages(_texts(row), sample, n), header_schema(n),
+            f"{table.id}:header[{i}]",
+        )
         value = data.get("header") if data else None
         if _is_str_list(value, n):
             return _cells(value), "llm"
-        logger.warning("header repair failed for table %s", table.id)
+        logger.warning("header repair failed for table %s (level %d)", table.id, i)
         return None, None
 
     # ---- rows --------------------------------------------------------------
     def _repair_row(
         self, header_levels: list[list[str]], row: list[TableCell], n: int
-        ) -> tuple[Optional[list[TableCell]], Optional[str]]:
+    ) -> tuple[Optional[list[TableCell]], Optional[str]]:
         # Rule: extra trailing empty cells -> drop them.
         if len(row) > n and all(not c.content.strip() for c in row[n:]):
             return row[:n], "rule"
@@ -298,7 +323,9 @@ class TableStructureAnalyzer(Analyzer):
         if self.provider is None:
             return None, None
 
-        data = self._ask(build_row_messages(header_levels, _texts(row)), row_schema(n))
+        data = self._ask(
+            build_row_messages(header_levels, _texts(row)), row_schema(n), "row"
+        )
         value = data.get("row") if data else None
         if _is_str_list(value, n) and _same_content(_texts(row), value):
             return _cells(value), "llm"
@@ -306,12 +333,5 @@ class TableStructureAnalyzer(Analyzer):
         return None, None
 
     # ---- provider call -----------------------------------------------------
-    def _ask(self, messages, schema) -> Optional[dict]:
-        for attempt in range(1, self.attempts + 1):
-            try:
-                data = self.provider.generate_json(messages, schema)  # type: ignore[union-attr]
-                if isinstance(data, dict):
-                    return data
-            except LLMError as e:
-                logger.warning("LLM attempt %d/%d failed: %s", attempt, self.attempts, e)
-        return None
+    def _ask(self, messages, schema, label: str = "") -> Optional[dict]:
+        return _generate_json(self.provider, messages, schema, self.attempts, label)  # type: ignore[arg-type]

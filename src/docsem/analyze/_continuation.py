@@ -3,11 +3,16 @@ Helpers for TableContinuationAnalyzer.
 
 Candidates: consecutive tables in reading order, on consecutive pages,
 with the same trusted column count. Every candidate goes to the LLM.
+
+The LLM judges from table data only: headers, row samples, and a few
+deterministic facts computed here (header relation, incrementing columns).
+Text between the fragments is deliberately NOT used.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Optional
+import re
+from dataclasses import dataclass
+from typing import Optional
 
 from ..extraction.base import ExtractedTable
 from ..ir.document import DocumentIR, Node
@@ -30,12 +35,10 @@ class Candidate:
     prev_table: ExtractedTable
     next_table: ExtractedTable
     n_cols: int
-    between: list[Node] = field(default_factory=list)
 
 
 def find_candidates(ir: DocumentIR) -> list[Candidate]:
     ordered = ir.nodes.ordered()
-    position = {n.id: i for i, n in enumerate(ordered)}
     tables = ordered.tables()
 
     out: list[Candidate] = []
@@ -48,24 +51,61 @@ def find_candidates(ir: DocumentIR) -> list[Candidate]:
         a, b = column_count(pt), column_count(nt)
         if a is None or a != b:
             continue
-        between = ordered[position[prev.id] + 1: position[nxt.id]]
-        out.append(Candidate(prev, nxt, pt, nt, a, list(between)))
+        out.append(Candidate(prev, nxt, pt, nt, a))
     return out
 
 
-def between_snippets(ir: DocumentIR, c: Candidate, limit: int = 3, width: int = 160) -> list[str]:
-    """Short text of blocks sitting between the two fragments (footers, headings, paragraphs)."""
-    out = []
-    for node in c.between:
-        if node.is_table:
-            continue
-        raw: Any = ir.resolve(node)
-        text = (getattr(raw, "text", None) or getattr(raw, "content", None) or "").strip()
-        if text:
-            out.append(text[:width])
-        if len(out) >= limit:
-            break
-    return out
+# ---------- deterministic facts ----------
+
+_TRAILING_INT = re.compile(r"^(.*?)(\d+)$")
+
+
+def _norm(rows: list[list[str]]) -> list[list[str]]:
+    return [[" ".join(c.split()).lower() for c in r] for r in rows]
+
+
+def header_relation(prev_header: list[list[str]], next_header: list[list[str]]) -> str:
+    if not prev_header and not next_header:
+        return "neither fragment has a header"
+    if not next_header:
+        return "B has no header (A does)"
+    if not prev_header:
+        return "B has a header, A has none"
+    if _norm(prev_header) == _norm(next_header):
+        return "B repeats A's header identically"
+    return "B's header differs from A's"
+
+
+def incrementing_columns(prev_tail: list[list[str]], next_head: list[list[str]]) -> list[int]:
+    """0-based columns where B's first row = A's last row + 1 (same text prefix, trailing integer +1)."""
+    if not prev_tail or not next_head:
+        return []
+    hits = []
+    for j, (x, y) in enumerate(zip(prev_tail[-1], next_head[0])):
+        mx, my = _TRAILING_INT.match(x.strip()), _TRAILING_INT.match(y.strip())
+        if mx and my and mx.group(1) == my.group(1) and int(my.group(2)) == int(mx.group(2)) + 1:
+            hits.append(j)
+    return hits
+
+
+def compute_facts(
+    prev_header: list[list[str]], prev_tail: list[list[str]],
+    next_header: list[list[str]], next_head: list[list[str]],
+) -> dict:
+    return {
+        "header_relation": header_relation(prev_header, next_header),
+        "incrementing_columns": incrementing_columns(prev_tail, next_head),
+    }
+
+
+def _facts_text(facts: dict) -> str:
+    cols = facts["incrementing_columns"]
+    seq = (
+        "column(s) " + ", ".join(str(c + 1) for c in cols)
+        + " (1-based): B's first row is A's last row + 1"
+        if cols else "none detected"
+    )
+    return f"- Header: {facts['header_relation']}\n- Incrementing numbering: {seq}"
 
 
 # ---------- LLM prompt / schema ----------
@@ -75,10 +115,10 @@ def continuation_schema() -> dict:
         "type": "object",
         "properties": {
             "is_continuation": {"type": "boolean"},
-            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "certainty": {"type": "string", "enum": ["certain", "likely", "unsure"]},
             "reason": {"type": "string"},
         },
-        "required": ["is_continuation", "confidence"],
+        "required": ["is_continuation", "certainty"],
         "additionalProperties": False,
     }
 
@@ -90,24 +130,26 @@ def _fmt(rows: list[list[str]], empty: str = "(none)") -> str:
 def build_continuation_messages(
     prev_header: list[list[str]], prev_tail: list[list[str]],
     next_header: list[list[str]], next_head: list[list[str]],
-    n_cols: int, between: list[str],
+    n_cols: int, facts: dict,
 ) -> list[dict]:
     system = (
         "You decide whether table fragment B (top of the next page) continues "
         "table fragment A (bottom of the previous page). Both have the same number "
-        "of columns. Headers may be repeated, re-worded, or missing on B, and an "
-        "extractor may have mistaken B's first data row for a header; so a "
-        "different header does not rule out a continuation, and an identical header "
-        "does not prove one (separate tables can share a schema). Judge mainly from "
-        "the rows: column meaning, value types/units/formats, row numbering, and "
-        "whether B's first row reads as a natural follow-on of A's last row. Real "
-        "content between the fragments (a paragraph or a new heading) suggests "
-        "separate tables; page footers or numbers do not. "
-        "Set confidence to how sure you are of your answer. Answer with JSON only."
+        "of columns. You are shown table data only; nothing else on the pages is "
+        "relevant, so do not speculate about it. Headers may be repeated, re-worded "
+        "or missing on B, and an extractor may have mistaken B's first data row for "
+        "a header, so a different header does not rule out a continuation and an "
+        "identical header does not prove one. Judge from the rows: what each column "
+        "holds, value types/units/formats, sequential numbering or IDs, and whether "
+        "B's first row reads as the natural next row after A's last row. Rows in "
+        "which a grouping value (e.g. a category, country or code) changes can still "
+        "belong to one table. Lines marked 'Facts' were computed by code and are "
+        "reliable. Answer is_continuation true or false, and set certainty to "
+        "'certain', 'likely' or 'unsure'. Answer with JSON only."
     )
     user = (
         f"Columns: {n_cols}\n"
-        f"Text between the fragments: {between or 'nothing'}\n\n"
+        f"Facts:\n{_facts_text(facts)}\n\n"
         f"Fragment A header:\n{_fmt(prev_header, '(no header)')}\n"
         f"Fragment A last rows:\n{_fmt(prev_tail)}\n\n"
         f"Fragment B header:\n{_fmt(next_header, '(no header)')}\n"
