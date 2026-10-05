@@ -34,14 +34,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import Enum, StrEnum
 
 from ..extraction.base import ExtractedBlock, ExtractedTable, ExtractionResult
 
 # ---------- Node layer ----------
 
 
-class NodeKind(str, Enum):
+class NodeKind(StrEnum):
     BLOCK = "block"
     TABLE = "table"
 
@@ -98,14 +98,14 @@ class Node:
 # ---------- Relation layer ----------
 
 
-class RelationType(str, Enum):
+class RelationType(StrEnum):
     TABLE_CONTINUATION = (
         "table_continuation"  # B is the next page-fragment of A (same logical table)
     )
     DUPLICATE = "duplicate"  # B repeats A's content (block<->block or table<->table only)
 
 
-class DuplicateMethod(str, Enum):
+class DuplicateMethod(StrEnum):
     NEAR_EXACT = "near_exact"  # normalized string match / edit distance
     SEMANTIC = "semantic"  # embedding similarity or LLM judgment
 

@@ -42,7 +42,7 @@ def find_candidates(ir: DocumentIR) -> list[Candidate]:
     tables = ordered.tables()
 
     out: list[Candidate] = []
-    for prev, nxt in zip(tables, tables[1:]):
+    for prev, nxt in zip(tables, tables[1:], strict=False):
         if nxt.page != prev.page + 1:
             continue
         pt, nt = ir.resolve(prev), ir.resolve(nxt)
@@ -77,11 +77,11 @@ def header_relation(prev_header: list[list[str]], next_header: list[list[str]]) 
 
 
 def incrementing_columns(prev_tail: list[list[str]], next_head: list[list[str]]) -> list[int]:
-    """0-based columns where B's first row = A's last row + 1 (same text prefix, trailing integer +1)."""
+    """Columns where B's first row = A's last row + 1, with matching text prefixes."""
     if not prev_tail or not next_head:
         return []
     hits = []
-    for j, (x, y) in enumerate(zip(prev_tail[-1], next_head[0])):
+    for j, (x, y) in enumerate(zip(prev_tail[-1], next_head[0], strict=False)):
         mx, my = _TRAILING_INT.match(x.strip()), _TRAILING_INT.match(y.strip())
         if mx and my and mx.group(1) == my.group(1) and int(my.group(2)) == int(mx.group(2)) + 1:
             hits.append(j)

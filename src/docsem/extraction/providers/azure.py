@@ -238,7 +238,8 @@ class AzureExtractor(BaseExtractor):
                 warnings.append(f"table[{t_idx}] has no bounding_regions at all")
             elif not bbox_by_page:
                 warnings.append(
-                    f"table[{t_idx}] has {len(regions)} bounding_region(s) but none produced a usable bbox"
+                    f"table[{t_idx}] has {len(regions)} bounding_region(s) but none produced "
+                    "a usable bbox"
                 )
 
             # Primary bbox kept for backwards-compat convenience: first page the
@@ -357,7 +358,8 @@ class AzureExtractor(BaseExtractor):
         except AttributeError:
             warnings.append(
                 f"{context}: polygon elements have no .x/.y (page {page_number}); "
-                f"got type {type(poly[0]).__name__ if poly else 'unknown'} — check SDK version, skipping"
+                f"got type {type(poly[0]).__name__ if poly else 'unknown'} — "
+                "check SDK version, skipping"
             )
             return None
 
@@ -375,7 +377,8 @@ class AzureExtractor(BaseExtractor):
             page_width, page_height, page_unit = page_dims[page_number]
         else:
             warnings.append(
-                f"{context}: no page dimensions found for page {page_number}; bbox left unnormalized"
+                f"{context}: no page dimensions found for page {page_number}; "
+                "bbox left unnormalized"
             )
 
         if page_width and page_height:

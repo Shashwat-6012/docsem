@@ -94,20 +94,14 @@ def _get(obj: Any, *names: str, default: Any = None) -> Any:
     """Read the first present key/attribute (PaddleOCR versions differ between
     dict-style and object-style parsing results)."""
     for n in names:
-        if isinstance(obj, dict):
-            v = obj.get(n)
-        else:
-            v = getattr(obj, n, None)
+        v = obj.get(n) if isinstance(obj, dict) else getattr(obj, n, None)
         if v is not None:
             return v
     return default
 
 
 def _as_array(x: Any, cols: int | None = None) -> np.ndarray:
-    if x is None:
-        arr = np.zeros((0,), dtype=float)
-    else:
-        arr = np.asarray(x, dtype=float)
+    arr = np.zeros((0,), dtype=float) if x is None else np.asarray(x, dtype=float)
     if cols is not None:
         arr = arr.reshape(-1, cols) if arr.size else np.zeros((0, cols), dtype=float)
     return arr

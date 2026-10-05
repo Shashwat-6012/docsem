@@ -1,16 +1,14 @@
 import logging
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 from .base import BaseExtractor
-from .providers.azure import AzureExtractor
-from .providers.paddle import PaddleOCRExtractor
 
 logger = logging.getLogger(__name__)
 
 
-class ProviderName(str, Enum):
+class ProviderName(StrEnum):
     AZURE = "azure"
     PADDLEOCR = "paddleocr"
 
@@ -26,12 +24,16 @@ def build_extractor(config: ExtractorConfig) -> BaseExtractor:
     else in the codebase has to."""
     logger.debug("building extractor for provider %s", config.provider)
     if config.provider == ProviderName.AZURE:
+        from .providers.azure import AzureExtractor
+
         return AzureExtractor(
             endpoint=config.options["endpoint"],
             api_key=config.options["api_key"],
             model_id=config.options.get("model_id", "prebuilt-document"),
         )
     elif config.provider == ProviderName.PADDLEOCR:
+        from .providers.paddle import PaddleOCRExtractor
+
         return PaddleOCRExtractor(
             lang=config.options.get("lang", "en"),
             use_gpu=config.options.get("use_gpu", False),
