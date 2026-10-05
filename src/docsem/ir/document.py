@@ -40,6 +40,7 @@ from ..extraction.base import ExtractedBlock, ExtractedTable, ExtractionResult
 
 # ---------- Node layer ----------
 
+
 class NodeKind(str, Enum):
     BLOCK = "block"
     TABLE = "table"
@@ -53,8 +54,9 @@ class NodeSource:
     Resolve it via DocumentIR.resolve(node) (or DocumentIR.raw(node_id))
     rather than holding the raw object on the Node itself.
     """
+
     type: NodeKind
-    id: str                          # ExtractedBlock.id or ExtractedTable.id
+    id: str  # ExtractedBlock.id or ExtractedTable.id
 
 
 @dataclass
@@ -63,9 +65,10 @@ class Node:
     A thin, stable-id wrapper that points at one raw ExtractedBlock or
     ExtractedTable via `source` (type + id). It holds no content itself.
     """
-    id: str                          # stable id, e.g. "p3_b12" or "p3_t2"
+
+    id: str  # stable id, e.g. "p3_b12" or "p3_t2"
     source: NodeSource
-    page: int                        # 1-indexed
+    page: int  # 1-indexed
 
     # Reading order: a node's rank in document-level top-to-bottom order.
     # Populated by the structure pass. None until that pass runs.
@@ -94,14 +97,17 @@ class Node:
 
 # ---------- Relation layer ----------
 
+
 class RelationType(str, Enum):
-    TABLE_CONTINUATION = "table_continuation"   # B is the next page-fragment of A (same logical table)
-    DUPLICATE = "duplicate"                     # B repeats A's content (block<->block or table<->table only)
+    TABLE_CONTINUATION = (
+        "table_continuation"  # B is the next page-fragment of A (same logical table)
+    )
+    DUPLICATE = "duplicate"  # B repeats A's content (block<->block or table<->table only)
 
 
 class DuplicateMethod(str, Enum):
-    NEAR_EXACT = "near_exact"   # normalized string match / edit distance
-    SEMANTIC = "semantic"       # embedding similarity or LLM judgment
+    NEAR_EXACT = "near_exact"  # normalized string match / edit distance
+    SEMANTIC = "semantic"  # embedding similarity or LLM judgment
 
 
 @dataclass
@@ -121,11 +127,12 @@ class Relation:
       (block<->block or table<->table). Block<->table duplicates are out
       of scope by design.
     """
+
     type: RelationType
     source_id: str
     target_id: str
-    confidence: float                # single score, 0.0-1.0
-    method: str | None = None     # e.g. DuplicateMethod value, or detector name
+    confidence: float  # single score, 0.0-1.0
+    method: str | None = None  # e.g. DuplicateMethod value, or detector name
     metadata: dict = field(default_factory=dict)
 
 
@@ -133,6 +140,7 @@ class Relation:
 # Query helpers for nodes and relations. Every helper returns the same
 # collection type so calls can be chained:
 #     ir.nodes.on_page(3).tables().ordered()
+
 
 class NodeList(list):
     """A list of Nodes with built-in query helpers."""
@@ -149,8 +157,11 @@ class NodeList(list):
     def by_source(self, source_id: str, kind: NodeKind | None = None) -> Node | None:
         """Find the node that points at a given raw block/table id."""
         return next(
-            (n for n in self
-             if n.source.id == source_id and (kind is None or n.source.type == kind)),
+            (
+                n
+                for n in self
+                if n.source.id == source_id and (kind is None or n.source.type == kind)
+            ),
             None,
         )
 
@@ -192,13 +203,15 @@ class NodeList(list):
         Nodes sorted by (order_index, page). Nodes with no order_index yet
         sort last, ordered by page only.
         """
-        return self._wrap(sorted(
-            self,
-            key=lambda n: (
-                n.order_index if n.order_index is not None else float("inf"),
-                n.page,
-            ),
-        ))
+        return self._wrap(
+            sorted(
+                self,
+                key=lambda n: (
+                    n.order_index if n.order_index is not None else float("inf"),
+                    n.page,
+                ),
+            )
+        )
 
     def unordered(self) -> NodeList:
         """Return nodes the structure pass has not assigned an order_index to."""
@@ -279,6 +292,7 @@ class RelationList(list):
 
 # ---------- Document-level container ----------
 
+
 @dataclass
 class DocumentIR:
     """
@@ -289,7 +303,8 @@ class DocumentIR:
       - relations: confidence-scored edges (continuation, duplicate)
       - derived views (reading order, canonical nodes, chunking units)
     """
-    source: ExtractionResult       # untouched raw extraction
+
+    source: ExtractionResult  # untouched raw extraction
     nodes: NodeList = field(default_factory=NodeList)
     relations: RelationList = field(default_factory=RelationList)
 

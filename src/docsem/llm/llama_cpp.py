@@ -14,8 +14,8 @@ class LlamaCppProvider(LLMProvider):
         model_path: str | None = None,
         repo_id: str = "ggml-org/gemma-3-1b-it-GGUF",  # verify repo/filename
         filename: str = "*Q4_K_M.gguf",
-        device: str = "auto",                 # "auto" | "cpu" | "gpu"
-        n_gpu_layers: int | None = None,   # partial offload override
+        device: str = "auto",  # "auto" | "cpu" | "gpu"
+        n_gpu_layers: int | None = None,  # partial offload override
         n_ctx: int = 2048,
         seed: int = 0,
     ):

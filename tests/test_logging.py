@@ -37,8 +37,7 @@ def test_package_is_silent_by_default(sample_document, capsys):
     assert captured.out == ""
     assert captured.err == ""
     assert not any(
-        isinstance(handler, logging.StreamHandler)
-        and not isinstance(handler, logging.NullHandler)
+        isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.NullHandler)
         for handler in logging.getLogger("docsem").handlers
     )
 
@@ -73,9 +72,7 @@ def test_aggregated_warning(sample_document, caplog):
     with caplog.at_level(logging.WARNING, logger="docsem"):
         doc.process(sample_document)
 
-    warning_records = [
-        record for record in caplog.records if record.levelno == logging.WARNING
-    ]
+    warning_records = [record for record in caplog.records if record.levelno == logging.WARNING]
     assert len(warning_records) == 1
     assert warning_records[0].getMessage() == "no_text_layer on 4 page(s)"
     assert warning_records[0].docsem_issue == "no_text_layer"

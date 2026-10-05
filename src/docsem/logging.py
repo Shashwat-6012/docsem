@@ -9,7 +9,5 @@ def enable_default_logging(level: int = logging.INFO) -> None:
     pkg_logger.setLevel(level)
     if not any(isinstance(handler, logging.StreamHandler) for handler in pkg_logger.handlers):
         handler = logging.StreamHandler()
-        handler.setFormatter(
-            logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-        )
+        handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
         pkg_logger.addHandler(handler)

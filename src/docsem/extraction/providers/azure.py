@@ -46,8 +46,6 @@ class AzureExtractor(BaseExtractor):
 
     def extract(self, input_data: ExtractionInput) -> ExtractionResult:
 
-
-
         with open(input_data.file_path, "rb") as f:
             poller = self._client.begin_analyze_document(
                 self.model_id,
@@ -65,7 +63,9 @@ class AzureExtractor(BaseExtractor):
 
         warnings = self._collect_warnings(result)
 
-        blocks = self._map_blocks(result, skip_ranges=table_span_ranges, page_dims=page_dims, warnings=warnings)
+        blocks = self._map_blocks(
+            result, skip_ranges=table_span_ranges, page_dims=page_dims, warnings=warnings
+        )
         tables = self._map_tables(result, page_dims=page_dims, warnings=warnings)
 
         return ExtractionResult(
@@ -139,7 +139,9 @@ class AzureExtractor(BaseExtractor):
 
             role = getattr(para, "role", None)
             bbox = self._first_bbox(
-                getattr(para, "bounding_regions", None), page_dims, warnings,
+                getattr(para, "bounding_regions", None),
+                page_dims,
+                warnings,
                 context=f"paragraph {para.content[:30]!r}",
             )
             blocks.append(
@@ -171,11 +173,15 @@ class AzureExtractor(BaseExtractor):
             bbox = None
             if kv.key is not None:
                 bbox = self._first_bbox(
-                    getattr(kv.key, "bounding_regions", None), page_dims, warnings,
+                    getattr(kv.key, "bounding_regions", None),
+                    page_dims,
+                    warnings,
                     context=f"key-value key {key_content[:30]!r}",
                 )
             else:
-                warnings.append(f"KV pair value={value_content[:30]!r} has no key element; bbox unavailable")
+                warnings.append(
+                    f"KV pair value={value_content[:30]!r} has no key element; bbox unavailable"
+                )
 
             blocks.append(
                 ExtractedBlock(
@@ -228,7 +234,9 @@ class AzureExtractor(BaseExtractor):
             if not regions:
                 warnings.append(f"table[{t_idx}] has no bounding_regions at all")
             elif not bbox_by_page:
-                warnings.append(f"table[{t_idx}] has {len(regions)} bounding_region(s) but none produced a usable bbox")
+                warnings.append(
+                    f"table[{t_idx}] has {len(regions)} bounding_region(s) but none produced a usable bbox"
+                )
 
             # Primary bbox kept for backwards-compat convenience: first page the
             # table appears on, in region order (== reading order for tables
@@ -241,7 +249,9 @@ class AzureExtractor(BaseExtractor):
                     rows=data_rows,
                     bbox=primary_bbox,
                     bbox_by_page=bbox_by_page,
-                    metadata={"spans_pages": sorted(bbox_by_page.keys())} if len(bbox_by_page) > 1 else {},
+                    metadata={"spans_pages": sorted(bbox_by_page.keys())}
+                    if len(bbox_by_page) > 1
+                    else {},
                 )
             )
         return tables
@@ -250,9 +260,7 @@ class AzureExtractor(BaseExtractor):
     def _header_row_indices(table) -> set[int]:
         """Row indices that contain at least one columnHeader cell."""
         return {
-            cell.row_index
-            for cell in table.cells
-            if getattr(cell, "kind", None) == "columnHeader"
+            cell.row_index for cell in table.cells if getattr(cell, "kind", None) == "columnHeader"
         }
 
     @staticmethod
@@ -271,7 +279,9 @@ class AzureExtractor(BaseExtractor):
             col_span = getattr(cell, "column_span", 1) or 1
 
             for r in range(cell.row_index, min(cell.row_index + row_span, table.row_count)):
-                for c in range(cell.column_index, min(cell.column_index + col_span, table.column_count)):
+                for c in range(
+                    cell.column_index, min(cell.column_index + col_span, table.column_count)
+                ):
                     if grid[r][c] is None:
                         # First cell of a span carries the real content;
                         # spanned-into cells repeat it so rows stay rectangular.
@@ -326,7 +336,9 @@ class AzureExtractor(BaseExtractor):
         page_number = getattr(region, "page_number", None)
 
         if not poly:
-            warnings.append(f"{context}: bounding_region has empty/missing polygon (page {page_number})")
+            warnings.append(
+                f"{context}: bounding_region has empty/missing polygon (page {page_number})"
+            )
             return None
 
         # azure-ai-formrecognizer's stable release (3.x) represents `polygon` as
@@ -359,7 +371,9 @@ class AzureExtractor(BaseExtractor):
         if page_number in page_dims:
             page_width, page_height, page_unit = page_dims[page_number]
         else:
-            warnings.append(f"{context}: no page dimensions found for page {page_number}; bbox left unnormalized")
+            warnings.append(
+                f"{context}: no page dimensions found for page {page_number}; bbox left unnormalized"
+            )
 
         if page_width and page_height:
             # Normalize to [0,1] fraction of page so PDF (inch) and scanned (pixel)
@@ -378,6 +392,9 @@ class AzureExtractor(BaseExtractor):
         # No page dims available (shouldn't normally happen) — fall back to raw,
         # unnormalized coordinates rather than losing the box entirely.
         return BoundingBox(
-            x0=x0, y0=y0, x1=x1, y1=y1,
+            x0=x0,
+            y0=y0,
+            x1=x1,
+            y1=y1,
             page=page_number if page_number is not None else -1,
         )

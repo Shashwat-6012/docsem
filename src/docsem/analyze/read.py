@@ -40,6 +40,7 @@ _COLUMN_GAP_FRACTION = 0.04
 # Helpers
 # ---------------------------------------------------------------------
 
+
 def _bbox(
     document_ir: DocumentIR,
     node: Node,
@@ -64,11 +65,7 @@ def _detect_columns(
     """
 
     boxes = sorted(
-        (
-            box
-            for node in page_nodes
-            if (box := _bbox(document_ir, node)) is not None
-        ),
+        (box for node in page_nodes if (box := _bbox(document_ir, node)) is not None),
         key=lambda box: box.x0,
     )
 
@@ -82,10 +79,7 @@ def _detect_columns(
     for box in boxes[1:]:
         previous_cluster = clusters[-1]
 
-        previous_max_x1 = max(
-            existing.x1
-            for existing in previous_cluster
-        )
+        previous_max_x1 = max(existing.x1 for existing in previous_cluster)
 
         gap = box.x0 - previous_max_x1
 
@@ -104,10 +98,7 @@ def _detect_columns(
         x0 = min(box.x0 for box in cluster)
         x1 = max(box.x1 for box in cluster)
 
-        y_span = (
-            max(box.y1 for box in cluster)
-            - min(box.y0 for box in cluster)
-        )
+        y_span = max(box.y1 for box in cluster) - min(box.y0 for box in cluster)
 
         if len(cluster) > 1 or y_span > 0.2:
             columns.append((x0, x1))
@@ -143,9 +134,7 @@ def _sort_key_within_page(
             float("inf"),
         )
 
-    y_bucket = round(
-        box.y0 / _Y_TOLERANCE_FRACTION
-    )
+    y_bucket = round(box.y0 / _Y_TOLERANCE_FRACTION)
 
     if not columns:
         return (
@@ -158,9 +147,7 @@ def _sort_key_within_page(
     # to the node's x0.
     column_index = min(
         range(len(columns)),
-        key=lambda i: abs(
-            box.x0 - columns[i][0]
-        ),
+        key=lambda i: abs(box.x0 - columns[i][0]),
     )
 
     return (
@@ -173,6 +160,7 @@ def _sort_key_within_page(
 # ---------------------------------------------------------------------
 # Analyzer
 # ---------------------------------------------------------------------
+
 
 class ReadingOrderAnalyzer(Analyzer):
     """
@@ -203,14 +191,9 @@ class ReadingOrderAnalyzer(Analyzer):
 
     name: ClassVar[str] = "reading_order"
 
-    owns_fields: ClassVar[tuple[str, ...]] = (
-        "order_index",
-    )
+    owns_fields: ClassVar[tuple[str, ...]] = ("order_index",)
 
-    def run(
-        self,
-        document_ir: DocumentIR
-    ) -> DocumentIR:
+    def run(self, document_ir: DocumentIR) -> DocumentIR:
         """
         Assign reading-order indices to all nodes.
 

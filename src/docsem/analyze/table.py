@@ -116,11 +116,11 @@ class TableContinuationAnalyzer(Analyzer):
         self,
         provider: LLMProvider | None = None,
         sample_rows: int = 3,
-        emit_floor: float = 0.15,     # 0.0 = emit every candidate
-        accept_at: float = 0.7,       # "likely"/"certain" continuation
+        emit_floor: float = 0.15,  # 0.0 = emit every candidate
+        accept_at: float = 0.7,  # "likely"/"certain" continuation
         review_at: float = 0.4,
         attempts: int = 2,
-        max_workers: int = 4,         # 1 = sequential
+        max_workers: int = 4,  # 1 = sequential
     ):
         super().__init__()
         self.provider = provider
@@ -146,20 +146,31 @@ class TableContinuationAnalyzer(Analyzer):
         jobs = [(c, *self._prepare(c)) for c in todo]
         schema = continuation_schema()
         with ThreadPoolExecutor(max_workers=max(1, self.max_workers)) as pool:
-            verdicts = list(pool.map(
-                lambda j: self._ask(j[1], schema, f"{j[0].prev.id}->{j[0].nxt.id}"), jobs
-            ))
+            verdicts = list(
+                pool.map(lambda j: self._ask(j[1], schema, f"{j[0].prev.id}->{j[0].nxt.id}"), jobs)
+            )
 
         for (c, _, facts), data in zip(jobs, verdicts):
             p = self._probability(data)
             if p is None:
                 logger.warning("no usable verdict for %s -> %s", c.prev.id, c.nxt.id)
                 continue
-            status = ("likely" if p >= self.accept_at
-                      else "needs_review" if p >= self.review_at else "unlikely")
-            logger.info("continuation %s -> %s: %.2f (%s) | %s | %s",
-                        c.prev.id, c.nxt.id, p, status, facts["header_relation"],
-                        data.get("reason", ""))
+            status = (
+                "likely"
+                if p >= self.accept_at
+                else "needs_review"
+                if p >= self.review_at
+                else "unlikely"
+            )
+            logger.info(
+                "continuation %s -> %s: %.2f (%s) | %s | %s",
+                c.prev.id,
+                c.nxt.id,
+                p,
+                status,
+                facts["header_relation"],
+                data.get("reason", ""),
+            )
             if p < self.emit_floor:
                 continue
             document_ir.relations.append(
@@ -188,9 +199,12 @@ class TableContinuationAnalyzer(Analyzer):
         prev_tail, next_head = texts(c.prev_table.rows[-k:]), texts(c.next_table.rows[:k])
         facts = compute_facts(prev_header, prev_tail, next_header, next_head)
         messages = build_continuation_messages(
-            prev_header=prev_header, prev_tail=prev_tail,
-            next_header=next_header, next_head=next_head,
-            n_cols=c.n_cols, facts=facts,
+            prev_header=prev_header,
+            prev_tail=prev_tail,
+            next_header=next_header,
+            next_head=next_head,
+            n_cols=c.n_cols,
+            facts=facts,
         )
         return messages, facts
 
@@ -243,9 +257,13 @@ class TableStructureAnalyzer(Analyzer):
         if issues is None:
             return
 
-        logger.info("table %s flagged: %d expected cols, %d bad header rows, %d bad data rows",
-                    table.id, issues.expected_cols,
-                    len(issues.bad_header_indices), len(issues.bad_row_indices))
+        logger.info(
+            "table %s flagged: %d expected cols, %d bad header rows, %d bad data rows",
+            table.id,
+            issues.expected_cols,
+            len(issues.bad_header_indices),
+            len(issues.bad_row_indices),
+        )
 
         n = issues.expected_cols
         record = self._record(table, n)
@@ -261,7 +279,7 @@ class TableStructureAnalyzer(Analyzer):
                 if fixed is None:
                     entry[i] = {"unresolved": True, "original": original}
                 else:
-                    table.header[i] = fixed                    # in-place
+                    table.header[i] = fixed  # in-place
                     entry[i] = {"method": method, "original": original}
 
         # ---- data rows ----
@@ -273,7 +291,7 @@ class TableStructureAnalyzer(Analyzer):
                 )
                 return
 
-            levels = [_texts(h) for h in table.header]         # list[list[str]], structure kept
+            levels = [_texts(h) for h in table.header]  # list[list[str]], structure kept
             for i in issues.bad_row_indices:
                 original = _texts(table.rows[i])
                 fixed_row, method = self._repair_row(levels, table.rows[i], n)
@@ -281,7 +299,7 @@ class TableStructureAnalyzer(Analyzer):
                     if i not in record["unresolved_rows"]:
                         record["unresolved_rows"].append(i)
                 else:
-                    table.rows[i] = fixed_row                  # in-place
+                    table.rows[i] = fixed_row  # in-place
                     record["rows"][i] = {"method": method, "original": original}
                     if i in record["unresolved_rows"]:
                         record["unresolved_rows"].remove(i)
@@ -311,7 +329,8 @@ class TableStructureAnalyzer(Analyzer):
 
         sample = [_texts(r) for r in table.rows if len(r) == n][: self.max_sample_rows]
         data = self._ask(
-            build_header_messages(_texts(row), sample, n), header_schema(n),
+            build_header_messages(_texts(row), sample, n),
+            header_schema(n),
             f"{table.id}:header[{i}]",
         )
         value = data.get("header") if data else None
@@ -331,9 +350,7 @@ class TableStructureAnalyzer(Analyzer):
         if self.provider is None:
             return None, None
 
-        data = self._ask(
-            build_row_messages(header_levels, _texts(row)), row_schema(n), "row"
-        )
+        data = self._ask(build_row_messages(header_levels, _texts(row)), row_schema(n), "row")
         value = data.get("row") if data else None
         if _is_str_list(value, n) and _same_content(_texts(row), value):
             return _cells(value), "llm"

@@ -228,8 +228,7 @@ def _html_to_grid(html: str) -> tuple[list[list[TableCell]], set[int]]:
 
     n_cols = max(c for _, c in placed) + 1
     grid = [
-        [TableCell(content=placed.get((r, c), "")) for c in range(n_cols)]
-        for r in range(n_rows)
+        [TableCell(content=placed.get((r, c), "")) for c in range(n_cols)] for r in range(n_rows)
     ]
     return grid, header_rows
 
@@ -276,8 +275,7 @@ class PaddleOCRExtractor(BaseExtractor):
             from paddleocr import PPStructureV3
         except ImportError as e:  # pragma: no cover
             raise ImportError(
-                "PaddleOCR is not installed. Run: pip install paddlepaddle "
-                "'paddleocr[doc-parser]'"
+                "PaddleOCR is not installed. Run: pip install paddlepaddle 'paddleocr[doc-parser]'"
             ) from e
 
         prof = dict(_PROFILES[profile])
@@ -456,7 +454,10 @@ class PaddleOCRExtractor(BaseExtractor):
             line_scores = np.zeros((0,), dtype=float)
         centers = (
             np.stack(
-                [(line_boxes[:, 0] + line_boxes[:, 2]) / 2, (line_boxes[:, 1] + line_boxes[:, 3]) / 2],
+                [
+                    (line_boxes[:, 0] + line_boxes[:, 2]) / 2,
+                    (line_boxes[:, 1] + line_boxes[:, 3]) / 2,
+                ],
                 axis=1,
             )
             if len(line_boxes)
@@ -479,11 +480,15 @@ class PaddleOCRExtractor(BaseExtractor):
             }
 
             if label == _TABLE_LABEL:
-                table = self._build_table(str(content), bbox, page_no, meta, confidence, warnings, ctx)
+                table = self._build_table(
+                    str(content), bbox, page_no, meta, confidence, warnings, ctx
+                )
                 if table is not None:
                     tables.append(table)
                     raw_parts.append(
-                        "\n".join(" | ".join(c.content for c in row) for row in table.header + table.rows)
+                        "\n".join(
+                            " | ".join(c.content for c in row) for row in table.header + table.rows
+                        )
                     )
                     continue
                 # Unparseable table: fall through and keep whatever text we got.
@@ -580,9 +585,7 @@ class PaddleOCRExtractor(BaseExtractor):
         )
 
     @staticmethod
-    def _text_confidence(
-        coord: Any, centers: np.ndarray, scores: np.ndarray
-    ) -> float | None:
+    def _text_confidence(coord: Any, centers: np.ndarray, scores: np.ndarray) -> float | None:
         if coord is None or not len(scores):
             return None
         try:
@@ -590,8 +593,10 @@ class PaddleOCRExtractor(BaseExtractor):
         except (TypeError, ValueError):
             return None
         mask = (
-            (centers[:, 0] >= x0) & (centers[:, 0] <= x1)
-            & (centers[:, 1] >= y0) & (centers[:, 1] <= y1)
+            (centers[:, 0] >= x0)
+            & (centers[:, 0] <= x1)
+            & (centers[:, 1] >= y0)
+            & (centers[:, 1] <= y1)
         )
         if not mask.any():
             return None

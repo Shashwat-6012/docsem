@@ -190,11 +190,11 @@ All providers implement the abstract base class `BaseExtractor`.
 ```python
 from docsem.extraction.base import BaseExtractor, ExtractionInput, ExtractionResult
 
+
 class MyExtractor(BaseExtractor):
     provider_name = "my_provider"
 
-    def extract(self, input_data: ExtractionInput) -> ExtractionResult:
-        ...
+    def extract(self, input_data: ExtractionInput) -> ExtractionResult: ...
 ```
 
 The contract is intentionally simple:
@@ -258,9 +258,7 @@ extractor = build_extractor(
     )
 )
 
-result = extractor.extract(
-    ExtractionInput(file_path=Path("invoice.pdf"), pages=[1, 2])
-)
+result = extractor.extract(ExtractionInput(file_path=Path("invoice.pdf"), pages=[1, 2]))
 
 print(result.provider)
 print(result.page_count)

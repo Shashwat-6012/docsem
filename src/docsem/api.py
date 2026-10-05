@@ -1,4 +1,3 @@
-
 """
 Public API for DocSem.
 
@@ -61,10 +60,7 @@ class DocSem:
         self.extractor = build_extractor(self.config.extraction)
         self.builder = IRBuilder()
 
-    def process(
-        self,
-        source: str | Path
-    ) -> DocumentIR:
+    def process(self, source: str | Path) -> DocumentIR:
         """
         Process a document and return its DocumentIR.
 
@@ -96,7 +92,12 @@ class DocSem:
             extracted = self.extractor.extract(ExtractionInput(file_path=validated_source))
             page_count = getattr(extracted, "page_count", None)
 
-            if page_count is not None and page_count > 0 and not getattr(extracted, "blocks", None) and not getattr(extracted, "tables", None):
+            if (
+                page_count is not None
+                and page_count > 0
+                and not getattr(extracted, "blocks", None)
+                and not getattr(extracted, "tables", None)
+            ):
                 for page_no in range(1, page_count + 1):
                     aggregator.add("no_text_layer", page_no)
 
@@ -131,20 +132,14 @@ class DocSem:
             path = Path(source)
 
             if not path.exists():
-                raise DocumentNotFoundError(
-                    f"Document not found: {path}"
-                )
+                raise DocumentNotFoundError(f"Document not found: {path}")
 
             if not path.is_file():
-                raise DocumentError(
-                    f"Expected a file, got: {path}"
-                )
+                raise DocumentError(f"Expected a file, got: {path}")
 
             return path
 
-        raise DocumentError(
-            "Unsupported source type. Expected a file path."
-        )
+        raise DocumentError("Unsupported source type. Expected a file path.")
 
     def __repr__(self) -> str:
         return f"DocSem(config={self.config!r})"
