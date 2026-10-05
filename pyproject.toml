@@ -5,11 +5,14 @@ license = "MIT"
 license-files = ["LICENSE"]
 description = "A python module that converts input documents into Standardized Representations"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12,<3.14"
 dependencies = [
     "azure-ai-formrecognizer>=3.3.3",
     "azure-core>=1.41.0",
     "dotenv>=0.9.9",
+    "paddleocr[doc-parser]>=3.7.0",
+    "paddlepaddle==3.3.0",
+    "pypdfium2>=5.14.0",
 ]
 
 [project.scripts]
@@ -23,10 +26,16 @@ llama = ["llama-cpp-python>=0.3", "huggingface-hub"]
 
 [tool.uv.sources]
 llama-cpp-python = { index = "llama-cpu" }
+paddlepaddle = { index = "paddle-cpu" }
 
 [[tool.uv.index]]
 name = "llama-cpu"
 url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "paddle-cpu"
+url = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
 explicit = true
 
 [build-system]
