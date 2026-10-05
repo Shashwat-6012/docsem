@@ -34,9 +34,7 @@ class ArtifactStoreConfig:
 
     def __post_init__(self) -> None:
         if self.type == "file" and self.location is None:
-            raise ConfigurationError(
-                "A location is required for the file artifact store."
-            )
+            raise ConfigurationError("A location is required for the file artifact store.")
 
 
 @dataclass(frozen=True)
@@ -78,6 +76,7 @@ class DocSemConfig:
                 provider=ProviderName.PADDLEOCR,
                 options={
                     "lang": "en",
-                    "use_gpu": False,}
+                    "use_gpu": False,
+                },
             )
         )

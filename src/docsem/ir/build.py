@@ -22,18 +22,25 @@ logger = logging.getLogger(__name__)
 class IRBuilder:
     def __init__(self, analyzers: list[Analyzer] | None = None):
         self.provider = create_provider("gemini")
-        configured = analyzers if analyzers is not None else [TableStructureAnalyzer(provider=self.provider),
-                                                              TableContinuationAnalyzer(provider=self.provider)]
+        configured = (
+            analyzers
+            if analyzers is not None
+            else [
+                TableStructureAnalyzer(provider=self.provider),
+                TableContinuationAnalyzer(provider=self.provider),
+            ]
+        )
         configured = [analyzer for analyzer in configured if analyzer.name != "reading_order"]
         self.pipeline = AnalyzerPipeline([ReadingOrderAnalyzer(), *configured])
 
     def build(self, result: ExtractionResult) -> DocumentIR:
         """Build nodes from extracted data and run every analyzer."""
-        logger.debug("building IR from %d blocks and %d tables", len(result.blocks), len(result.tables))
+        logger.debug(
+            "building IR from %d blocks and %d tables", len(result.blocks), len(result.tables)
+        )
         nodes = self._extraction_result_to_nodes(result)
         doc_ir = DocumentIR(source=result, nodes=nodes)
         return self.pipeline.run(doc_ir)
-        
 
     def _extraction_result_to_nodes(self, result: ExtractionResult) -> list[Node]:
         """
@@ -64,10 +71,7 @@ class IRBuilder:
             nodes.append(
                 Node(
                     id=f"p{block.bbox.page}_b{i}",
-                    source = NodeSource(
-                        type=NodeKind.BLOCK,
-                        id=block.id
-                    ),
+                    source=NodeSource(type=NodeKind.BLOCK, id=block.id),
                     page=block.bbox.page,
                 )
             )
@@ -87,10 +91,7 @@ class IRBuilder:
             nodes.append(
                 Node(
                     id=f"p{table.bbox.page}_t{i}",
-                    source=NodeSource(
-                        type=NodeKind.TABLE,
-                        id=table.id
-                    ),
+                    source=NodeSource(type=NodeKind.TABLE, id=table.id),
                     page=table.bbox.page,
                 )
             )

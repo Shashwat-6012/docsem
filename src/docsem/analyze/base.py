@@ -61,10 +61,7 @@ class Analyzer(ABC):
     owns_fields: ClassVar[tuple[str, ...]] = ()
 
     @abstractmethod
-    def run(
-        self,
-        document_ir: DocumentIR
-    ) -> DocumentIR:
+    def run(self, document_ir: DocumentIR) -> DocumentIR:
         """
         Execute this analyzer.
 
@@ -80,10 +77,7 @@ class AnalyzerPipeline:
     def __init__(self, analyzers: list[Analyzer]):
         self._analyzers = list(analyzers)
 
-    def run(
-        self,
-        document_ir: DocumentIR
-    ) -> DocumentIR:
+    def run(self, document_ir: DocumentIR) -> DocumentIR:
         logger.debug("running %d analyzers", len(self._analyzers))
         completed: set[str] = set()
         for analyzer in self._analyzers:

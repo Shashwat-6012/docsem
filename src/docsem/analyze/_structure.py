@@ -11,9 +11,9 @@ from ..llm import Message
 
 @dataclass(frozen=True)
 class TableIssues:
-    expected_cols: int                                   # modal data-row width
+    expected_cols: int  # modal data-row width
     bad_header_indices: list[int] = field(default_factory=list)  # which header rows are off
-    missing_header: bool = False                         # table has no header rows at all
+    missing_header: bool = False  # table has no header rows at all
     bad_row_indices: list[int] = field(default_factory=list)
 
     @property
@@ -47,7 +47,7 @@ def detect_issues(
 
 _HEADER_SYSTEM = (
     "You repair table headers that were auto-detected incorrectly. "
-    "Placeholder names such as \"Unknown\" or empty names are wrong. "
+    'Placeholder names such as "Unknown" or empty names are wrong. '
     "Return ONLY JSON with the corrected header."
 )
 _ROW_SYSTEM = (
@@ -61,8 +61,7 @@ def header_schema(n: int) -> dict:
     return {
         "type": "object",
         "properties": {
-            "header": {"type": "array", "items": {"type": "string"},
-                       "minItems": n, "maxItems": n},
+            "header": {"type": "array", "items": {"type": "string"}, "minItems": n, "maxItems": n},
         },
         "required": ["header"],
         "additionalProperties": False,
@@ -73,8 +72,7 @@ def row_schema(n: int) -> dict:
     return {
         "type": "object",
         "properties": {
-            "row": {"type": "array", "items": {"type": "string"},
-                    "minItems": n, "maxItems": n},
+            "row": {"type": "array", "items": {"type": "string"}, "minItems": n, "maxItems": n},
         },
         "required": ["row"],
         "additionalProperties": False,
@@ -83,7 +81,7 @@ def row_schema(n: int) -> dict:
 
 def build_header_messages(
     levels: Sequence[Sequence[str]],
-    target: int,                       # 0-based index of the header row to repair
+    target: int,  # 0-based index of the header row to repair
     sample_rows: Sequence[Sequence[str]],
     n: int,
 ) -> list[Message]:
@@ -110,8 +108,8 @@ def build_header_messages(
         f"Sample rows: {json.dumps([list(r) for r in sample_rows])}\n"
         "Output:\n"
     )
-    return [{"role": "system", "content": _HEADER_SYSTEM},
-            {"role": "user", "content": user}]
+    return [{"role": "system", "content": _HEADER_SYSTEM}, {"role": "user", "content": user}]
+
 
 def build_row_messages(header: Sequence[str], row: Sequence[str]) -> list[Message]:
     user = (
@@ -121,5 +119,4 @@ def build_row_messages(header: Sequence[str], row: Sequence[str]) -> list[Messag
         f"Input:\nHeader: {json.dumps(list(header))}\n"
         f"Malformed row: {json.dumps(list(row))}\nOutput:\n"
     )
-    return [{"role": "system", "content": _ROW_SYSTEM},
-            {"role": "user", "content": user}]
+    return [{"role": "system", "content": _ROW_SYSTEM}, {"role": "user", "content": user}]

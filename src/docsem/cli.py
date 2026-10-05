@@ -58,9 +58,7 @@ def serialize_document_ir(document_ir: object) -> str:
     elif hasattr(document_ir, "dict"):
         data = document_ir.dict()
     else:
-        raise TypeError(
-            "DocumentIR must be a dataclass or provide model_dump()/dict()."
-        )
+        raise TypeError("DocumentIR must be a dataclass or provide model_dump()/dict().")
 
     return json.dumps(data, indent=2, ensure_ascii=False, default=str)
 
@@ -74,9 +72,7 @@ def main() -> int:
         enable_default_logging(logging.DEBUG)
 
     if not args.input_path.is_file():
-        parser.error(
-            f"Input file does not exist: {args.input_path}"
-        )
+        parser.error(f"Input file does not exist: {args.input_path}")
 
     azure_endpoint = os.environ.get("AZURE_ENDPOINT")
     azure_api_key = os.environ.get("AZURE_API_KEY")
@@ -89,14 +85,12 @@ def main() -> int:
 
     try:
         config = DocSemConfig(
-            extraction=ExtractorConfig(
-                provider=ProviderName.PADDLEOCR
-            ),
+            extraction=ExtractorConfig(provider=ProviderName.PADDLEOCR),
         )
 
         docsem = DocSem(config=config)
         document = docsem.process(args.input_path)
-        
+
         output_json = serialize_document_ir(document)
 
         if args.output:

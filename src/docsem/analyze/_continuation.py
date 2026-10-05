@@ -8,6 +8,7 @@ The LLM judges from table data only: headers, row samples, and a few
 deterministic facts computed here (header relation, incrementing columns).
 Text between the fragments is deliberately NOT used.
 """
+
 from __future__ import annotations
 
 import re
@@ -88,8 +89,10 @@ def incrementing_columns(prev_tail: list[list[str]], next_head: list[list[str]])
 
 
 def compute_facts(
-    prev_header: list[list[str]], prev_tail: list[list[str]],
-    next_header: list[list[str]], next_head: list[list[str]],
+    prev_header: list[list[str]],
+    prev_tail: list[list[str]],
+    next_header: list[list[str]],
+    next_head: list[list[str]],
 ) -> dict:
     return {
         "header_relation": header_relation(prev_header, next_header),
@@ -100,14 +103,17 @@ def compute_facts(
 def _facts_text(facts: dict) -> str:
     cols = facts["incrementing_columns"]
     seq = (
-        "column(s) " + ", ".join(str(c + 1) for c in cols)
+        "column(s) "
+        + ", ".join(str(c + 1) for c in cols)
         + " (1-based): B's first row is A's last row + 1"
-        if cols else "none detected"
+        if cols
+        else "none detected"
     )
     return f"- Header: {facts['header_relation']}\n- Incrementing numbering: {seq}"
 
 
 # ---------- LLM prompt / schema ----------
+
 
 def continuation_schema() -> dict:
     return {
@@ -127,9 +133,12 @@ def _fmt(rows: list[list[str]], empty: str = "(none)") -> str:
 
 
 def build_continuation_messages(
-    prev_header: list[list[str]], prev_tail: list[list[str]],
-    next_header: list[list[str]], next_head: list[list[str]],
-    n_cols: int, facts: dict,
+    prev_header: list[list[str]],
+    prev_tail: list[list[str]],
+    next_header: list[list[str]],
+    next_head: list[list[str]],
+    n_cols: int,
+    facts: dict,
 ) -> list[dict]:
     system = (
         "You decide whether table fragment B (top of the next page) continues "

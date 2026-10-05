@@ -4,7 +4,7 @@ from .base import LLMError, LLMProvider, Message
 
 _REGISTRY = {
     "llama_cpp": ("docsem.llm.llama_cpp", "LlamaCppProvider"),
-    "gemini": ("docsem.llm.gemini", "GeminiProvider")
+    "gemini": ("docsem.llm.gemini", "GeminiProvider"),
 }
 
 
