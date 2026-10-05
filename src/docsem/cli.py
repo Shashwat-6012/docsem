@@ -90,11 +90,7 @@ def main() -> int:
     try:
         config = DocSemConfig(
             extraction=ExtractorConfig(
-                provider=ProviderName.AZURE,
-                options={
-                    "endpoint": azure_endpoint,
-                    "api_key": azure_api_key,
-                },
+                provider=ProviderName.PADDLEOCR
             ),
         )
 
