@@ -28,11 +28,11 @@ the loop itself doesn't need to know why.
 """
 
 from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from typing import ClassVar
 
-from ..extraction.base import ExtractionResult
 from ..ir.document import DocumentIR
 
 logger = logging.getLogger(__name__)

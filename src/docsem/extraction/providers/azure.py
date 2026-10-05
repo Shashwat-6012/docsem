@@ -5,20 +5,19 @@ Requires: pip install azure-ai-formrecognizer azure-core
 """
 
 import logging
-from typing import Optional
 
-from azure.core.credentials import AzureKeyCredential
 from azure.ai.formrecognizer import DocumentAnalysisClient
+from azure.core.credentials import AzureKeyCredential
 
 from ..base import (
     BaseExtractor,
-    ExtractionInput,
-    ExtractionResult,
-    ExtractedBlock,
-    ExtractedTable,
-    TableCell,
     BlockType,
     BoundingBox,
+    ExtractedBlock,
+    ExtractedTable,
+    ExtractionInput,
+    ExtractionResult,
+    TableCell,
 )
 
 logger = logging.getLogger(__name__)
@@ -80,7 +79,7 @@ class AzureExtractor(BaseExtractor):
         )
 
     @staticmethod
-    def _pages_param(pages: Optional[list[int]]) -> Optional[str]:
+    def _pages_param(pages: list[int] | None) -> str | None:
         if not pages:
             return None
         return ",".join(str(p) for p in pages)
@@ -190,7 +189,7 @@ class AzureExtractor(BaseExtractor):
         return blocks
 
     @staticmethod
-    def _role_to_block_type(role: Optional[str]) -> BlockType:
+    def _role_to_block_type(role: str | None) -> BlockType:
         if role in ("title", "sectionHeading"):
             return BlockType.HEADING
         return BlockType.TEXT
@@ -261,7 +260,7 @@ class AzureExtractor(BaseExtractor):
         """Reconstruct a dense row x column grid from Azure's flat cell list,
         filling merged/spanned cells so every row has column_count entries
         and list order alone conveys position."""
-        grid: list[list[Optional[TableCell]]] = [
+        grid: list[list[TableCell | None]] = [
             [None for _ in range(table.column_count)] for _ in range(table.row_count)
         ]
 
@@ -307,7 +306,7 @@ class AzureExtractor(BaseExtractor):
         page_dims: dict[int, tuple[float, float, str]],
         warnings: list[str],
         context: str = "",
-    ) -> Optional[BoundingBox]:
+    ) -> BoundingBox | None:
         """Bbox from the first bounding region only. Use this for blocks that
         can't reasonably span pages (paragraphs, KV pairs). For anything that
         can span pages (tables), use bbox_by_page via _region_to_bbox instead."""
@@ -322,7 +321,7 @@ class AzureExtractor(BaseExtractor):
         page_dims: dict[int, tuple[float, float, str]],
         warnings: list[str],
         context: str = "",
-    ) -> Optional[BoundingBox]:
+    ) -> BoundingBox | None:
         poly = getattr(region, "polygon", None)
         page_number = getattr(region, "page_number", None)
 

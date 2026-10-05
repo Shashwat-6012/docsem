@@ -1,10 +1,11 @@
 from __future__ import annotations
 
-
 import json
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Optional, Sequence, Any
+from typing import Any
+
 from ..llm import Message
 
 
@@ -22,7 +23,7 @@ class TableIssues:
 
 def detect_issues(
     header: Sequence[Sequence[Any]], rows: Sequence[Sequence[Any]]
-) -> Optional[TableIssues]:
+) -> TableIssues | None:
     """header is a list of header rows (top to bottom); rows is the data rows.
     Return None if the table is consistent (or can't be judged)."""
     if not rows:

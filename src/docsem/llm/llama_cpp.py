@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import logging
 import threading
-from typing import Optional
 
 from .base import LLMProvider, Message, fold_system
 
@@ -12,11 +11,11 @@ log = logging.getLogger(__name__)
 class LlamaCppProvider(LLMProvider):
     def __init__(
         self,
-        model_path: Optional[str] = None,
+        model_path: str | None = None,
         repo_id: str = "ggml-org/gemma-3-1b-it-GGUF",  # verify repo/filename
         filename: str = "*Q4_K_M.gguf",
         device: str = "auto",                 # "auto" | "cpu" | "gpu"
-        n_gpu_layers: Optional[int] = None,   # partial offload override
+        n_gpu_layers: int | None = None,   # partial offload override
         n_ctx: int = 2048,
         seed: int = 0,
     ):
@@ -38,7 +37,7 @@ class LlamaCppProvider(LLMProvider):
             self.llm = self._load(model_path, repo_id, filename, 0, n_ctx, seed)
             self.device = "cpu"
 
-    def _resolve_layers(self, device: str, n_gpu_layers: Optional[int]) -> int:
+    def _resolve_layers(self, device: str, n_gpu_layers: int | None) -> int:
         if device == "cpu":
             return 0
         supported = self._lc.llama_supports_gpu_offload()

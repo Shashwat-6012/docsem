@@ -10,11 +10,11 @@ from __future__ import annotations
 import logging
 
 from ..analyze.base import Analyzer, AnalyzerPipeline
-from ..analyze.table import TableStructureAnalyzer, TableContinuationAnalyzer
-from ..extraction.base import ExtractionResult
-from .document import DocumentIR, Node, NodeKind, NodeSource
 from ..analyze.read import ReadingOrderAnalyzer
+from ..analyze.table import TableContinuationAnalyzer, TableStructureAnalyzer
+from ..extraction.base import ExtractionResult
 from ..llm import create_provider
+from .document import DocumentIR, Node, NodeKind, NodeSource
 
 logger = logging.getLogger(__name__)
 

@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Literal, Sequence, TypedDict
+from collections.abc import Sequence
+from typing import Any, Literal, TypedDict
 
 
 class Message(TypedDict):
