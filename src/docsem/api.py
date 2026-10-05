@@ -24,10 +24,8 @@ from .exceptions import (
     DocumentError,
     DocumentNotFoundError,
 )
-
-from .extraction.factory import build_extractor
 from .extraction.base import ExtractionInput
-
+from .extraction.factory import build_extractor
 from .ir.build import IRBuilder
 
 logger = logging.getLogger(__name__)

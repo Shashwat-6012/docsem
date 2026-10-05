@@ -15,11 +15,10 @@ canonical representation of reading order.
 from __future__ import annotations
 
 import logging
-from typing import ClassVar, Optional
+from typing import ClassVar
 
 from ..ir.document import DocumentIR, Node
 from .base import Analyzer
-from ..extraction.base import ExtractionResult
 
 logger = logging.getLogger(__name__)
 
@@ -53,7 +52,7 @@ def _bbox(
 def _detect_columns(
     document_ir: DocumentIR,
     page_nodes: list[Node],
-) -> Optional[list[tuple[float, float]]]:
+) -> list[tuple[float, float]] | None:
     """
     Best-effort column detection for one page.
 
@@ -119,7 +118,7 @@ def _detect_columns(
 def _sort_key_within_page(
     document_ir: DocumentIR,
     node: Node,
-    columns: Optional[list[tuple[float, float]]],
+    columns: list[tuple[float, float]] | None,
 ):
     """
     Return the reading-order sort key for a node on a single page.

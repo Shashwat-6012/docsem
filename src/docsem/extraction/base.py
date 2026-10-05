@@ -1,17 +1,17 @@
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
-from typing import Any, Optional
-import uuid
+from typing import Any
 
 # ---------- Input ----------
 
 @dataclass
 class ExtractionInput:
     file_path: Path
-    mime_type: Optional[str] = None
-    pages: Optional[list[int]] = None
+    mime_type: str | None = None
+    pages: list[int] | None = None
     options: dict[str, Any] = field(default_factory=dict)
 
 
@@ -51,9 +51,9 @@ class BoundingBox:
     x1: float
     y1: float
     page: int
-    page_width: Optional[float] = None
-    page_height: Optional[float] = None
-    page_unit: Optional[str] = None  # "inch" | "pixel" | None if unknown
+    page_width: float | None = None
+    page_height: float | None = None
+    page_unit: str | None = None  # "inch" | "pixel" | None if unknown
 
     @property
     def width(self) -> float:
@@ -73,8 +73,8 @@ class ExtractedBlock:
     type: BlockType
     content: str
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    confidence: Optional[float] = None
-    bbox: Optional[BoundingBox] = None
+    confidence: float | None = None
+    bbox: BoundingBox | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -83,7 +83,7 @@ class ExtractedBlock:
 @dataclass
 class TableCell:
     content: str
-    confidence: Optional[float] = None
+    confidence: float | None = None
 
 
 @dataclass
@@ -93,7 +93,7 @@ class ExtractedTable:
     header: list[list[TableCell]]
     rows: list[list[TableCell]]
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
-    bbox: Optional[BoundingBox] = None
+    bbox: BoundingBox | None = None
     # bbox_by_page covers tables that span multiple pages: page_number -> BoundingBox
     # for the portion of the table on that page. Populated whenever a table's
     # bounding_regions has more than one entry; bbox above is always just the
@@ -107,7 +107,7 @@ class ExtractedTable:
 class ExtractedBlockList(list):
     """A list of ExtractedBlocks with built-in query helpers."""
     
-    def get(self, block_id: str) -> Optional[Any]:
+    def get(self, block_id: str) -> Any | None:
         """Get a single block by its ID."""
         return next((b for b in self if b.id == block_id), None)
 
@@ -127,7 +127,7 @@ class ExtractedBlockList(list):
 class ExtractedTableList(list):
     """A list of ExtractedTables with built-in query helpers."""
     
-    def get(self, table_id: str) -> Optional[Any]:
+    def get(self, table_id: str) -> Any | None:
         """Get a single table by its ID."""
         return next((t for t in self if t.id == table_id), None)
 
@@ -145,7 +145,7 @@ class ExtractionResult:
     provider: str = ""
     page_count: int = 0
     warnings: list[str] = field(default_factory=list)
-    raw_response: Optional[Any] = None
+    raw_response: Any | None = None
 
     def __post_init__(self):
         # Automatically wrap standard lists into custom queryable lists on initialization

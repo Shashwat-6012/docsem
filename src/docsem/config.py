@@ -14,7 +14,6 @@ from typing import Literal
 from .exceptions import ConfigurationError
 from .extraction.factory import ExtractorConfig, ProviderName
 
-
 ExtractionMode = Literal[
     "auto",
     "text",
@@ -72,7 +71,7 @@ class DocSemConfig:
     debug: DebugConfig = DebugConfig()
 
     @classmethod
-    def default(cls) -> "DocSemConfig":
+    def default(cls) -> DocSemConfig:
         """Return the default configuration."""
         return cls(
             extraction=ExtractorConfig(

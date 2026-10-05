@@ -21,9 +21,10 @@ Design notes
 
 import logging
 import os
+from collections.abc import Iterator
 from html.parser import HTMLParser
 from pathlib import Path
-from typing import Any, Iterator, Optional
+from typing import Any
 
 # Skip the slow "is the model host reachable?" probe on every start-up.
 os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
@@ -100,7 +101,7 @@ def _get(obj: Any, *names: str, default: Any = None) -> Any:
     return default
 
 
-def _as_array(x: Any, cols: Optional[int] = None) -> np.ndarray:
+def _as_array(x: Any, cols: int | None = None) -> np.ndarray:
     if x is None:
         arr = np.zeros((0,), dtype=float)
     else:
@@ -137,8 +138,8 @@ class _TableHTMLParser(HTMLParser):
         self.rows: list[dict[str, Any]] = []
         self._depth = 0
         self._in_thead = False
-        self._row: Optional[dict[str, Any]] = None
-        self._cell: Optional[dict[str, Any]] = None
+        self._row: dict[str, Any] | None = None
+        self._cell: dict[str, Any] | None = None
 
     def handle_starttag(self, tag, attrs):
         a = dict(attrs)
@@ -247,9 +248,9 @@ class PaddleOCRExtractor(BaseExtractor):
         lang: str = "en",
         use_gpu: bool = False,
         profile: str = "balanced",
-        cpu_threads: Optional[int] = None,
+        cpu_threads: int | None = None,
         enable_mkldnn: bool = False,
-        dpi: Optional[int] = None,
+        dpi: int | None = None,
         max_side_px: int = 2800,
         first_row_as_header_fallback: bool = True,
         keep_raw_response: bool = True,
@@ -511,13 +512,13 @@ class PaddleOCRExtractor(BaseExtractor):
     def _build_table(
         self,
         html: str,
-        bbox: Optional[BoundingBox],
+        bbox: BoundingBox | None,
         page_no: int,
         meta: dict[str, Any],
-        confidence: Optional[float],
+        confidence: float | None,
         warnings: list[str],
         ctx: str,
-    ) -> Optional[ExtractedTable]:
+    ) -> ExtractedTable | None:
         try:
             grid, header_idx = _html_to_grid(html)
         except Exception as exc:
@@ -554,7 +555,7 @@ class PaddleOCRExtractor(BaseExtractor):
     @staticmethod
     def _to_bbox(
         coord: Any, page_no: int, w: int, h: int, warnings: list[str], ctx: str
-    ) -> Optional[BoundingBox]:
+    ) -> BoundingBox | None:
         if coord is None:
             warnings.append(f"{ctx}: no bbox on element")
             return None
@@ -581,7 +582,7 @@ class PaddleOCRExtractor(BaseExtractor):
     @staticmethod
     def _text_confidence(
         coord: Any, centers: np.ndarray, scores: np.ndarray
-    ) -> Optional[float]:
+    ) -> float | None:
         if coord is None or not len(scores):
             return None
         try:
@@ -597,7 +598,7 @@ class PaddleOCRExtractor(BaseExtractor):
         return round(float(scores[mask].mean()), 4)
 
     @staticmethod
-    def _layout_score(coord: Any, label: str, layout_boxes: list[Any]) -> Optional[float]:
+    def _layout_score(coord: Any, label: str, layout_boxes: list[Any]) -> float | None:
         if coord is None:
             return None
         try:

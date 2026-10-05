@@ -32,12 +32,11 @@ Design principles (per spec):
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Iterable, Optional, Union
 
 from ..extraction.base import ExtractedBlock, ExtractedTable, ExtractionResult
-
 
 # ---------- Node layer ----------
 
@@ -70,10 +69,10 @@ class Node:
 
     # Reading order: a node's rank in document-level top-to-bottom order.
     # Populated by the structure pass. None until that pass runs.
-    order_index: Optional[int] = None
+    order_index: int | None = None
 
     # Hook for future logical sections (e.g. "introduction", "appendix_a").
-    section_id: Optional[str] = None
+    section_id: str | None = None
 
     # Scratch space for detection passes (cached normalized text, embedding
     # vectors, column signatures). Not authoritative; safe to recompute.
@@ -126,7 +125,7 @@ class Relation:
     source_id: str
     target_id: str
     confidence: float                # single score, 0.0-1.0
-    method: Optional[str] = None     # e.g. DuplicateMethod value, or detector name
+    method: str | None = None     # e.g. DuplicateMethod value, or detector name
     metadata: dict = field(default_factory=dict)
 
 
@@ -138,16 +137,16 @@ class Relation:
 class NodeList(list):
     """A list of Nodes with built-in query helpers."""
 
-    def _wrap(self, items: Iterable[Node]) -> "NodeList":
+    def _wrap(self, items: Iterable[Node]) -> NodeList:
         return NodeList(items)
 
     # --- lookup ---
 
-    def get(self, node_id: str) -> Optional[Node]:
+    def get(self, node_id: str) -> Node | None:
         """Get a single node by its ID."""
         return next((n for n in self if n.id == node_id), None)
 
-    def by_source(self, source_id: str, kind: Optional[NodeKind] = None) -> Optional[Node]:
+    def by_source(self, source_id: str, kind: NodeKind | None = None) -> Node | None:
         """Find the node that points at a given raw block/table id."""
         return next(
             (n for n in self
@@ -160,35 +159,35 @@ class NodeList(list):
 
     # --- filters by kind ---
 
-    def blocks(self) -> "NodeList":
+    def blocks(self) -> NodeList:
         """Return nodes that point at blocks."""
         return self._wrap(n for n in self if n.source.type == NodeKind.BLOCK)
 
-    def tables(self) -> "NodeList":
+    def tables(self) -> NodeList:
         """Return nodes that point at tables."""
         return self._wrap(n for n in self if n.source.type == NodeKind.TABLE)
 
-    def by_kind(self, kind: NodeKind) -> "NodeList":
+    def by_kind(self, kind: NodeKind) -> NodeList:
         """Return nodes of a specific kind."""
         return self._wrap(n for n in self if n.source.type == kind)
 
     # --- filters by position ---
 
-    def on_page(self, page: int) -> "NodeList":
+    def on_page(self, page: int) -> NodeList:
         """Return nodes on a specific page (1-indexed)."""
         return self._wrap(n for n in self if n.page == page)
 
-    def on_pages(self, start: int, end: int) -> "NodeList":
+    def on_pages(self, start: int, end: int) -> NodeList:
         """Return nodes on pages start..end inclusive."""
         return self._wrap(n for n in self if start <= n.page <= end)
 
-    def in_section(self, section_id: str) -> "NodeList":
+    def in_section(self, section_id: str) -> NodeList:
         """Return nodes assigned to a logical section."""
         return self._wrap(n for n in self if n.section_id == section_id)
 
     # --- ordering / pass state ---
 
-    def ordered(self) -> "NodeList":
+    def ordered(self) -> NodeList:
         """
         Nodes sorted by (order_index, page). Nodes with no order_index yet
         sort last, ordered by page only.
@@ -201,15 +200,15 @@ class NodeList(list):
             ),
         ))
 
-    def unordered(self) -> "NodeList":
+    def unordered(self) -> NodeList:
         """Return nodes the structure pass has not assigned an order_index to."""
         return self._wrap(n for n in self if n.order_index is None)
 
-    def with_metadata(self, key: str) -> "NodeList":
+    def with_metadata(self, key: str) -> NodeList:
         """Return nodes whose scratch metadata contains `key`."""
         return self._wrap(n for n in self if key in n.metadata)
 
-    def excluding(self, ids: Iterable[str]) -> "NodeList":
+    def excluding(self, ids: Iterable[str]) -> NodeList:
         """Return nodes whose id is not in `ids`."""
         skip = set(ids)
         return self._wrap(n for n in self if n.id not in skip)
@@ -218,48 +217,48 @@ class NodeList(list):
 class RelationList(list):
     """A list of Relations with built-in query helpers."""
 
-    def _wrap(self, items: Iterable[Relation]) -> "RelationList":
+    def _wrap(self, items: Iterable[Relation]) -> RelationList:
         return RelationList(items)
 
     # --- filters by type ---
 
-    def by_type(self, relation_type: RelationType) -> "RelationList":
+    def by_type(self, relation_type: RelationType) -> RelationList:
         """Return relations of a specific type."""
         return self._wrap(r for r in self if r.type == relation_type)
 
-    def continuations(self) -> "RelationList":
+    def continuations(self) -> RelationList:
         """Return TABLE_CONTINUATION relations."""
         return self.by_type(RelationType.TABLE_CONTINUATION)
 
-    def duplicates(self) -> "RelationList":
+    def duplicates(self) -> RelationList:
         """Return DUPLICATE relations."""
         return self.by_type(RelationType.DUPLICATE)
 
     # --- filters by endpoint ---
 
-    def involving(self, node_id: str) -> "RelationList":
+    def involving(self, node_id: str) -> RelationList:
         """Return relations where the node is either source or target."""
         return self._wrap(r for r in self if r.source_id == node_id or r.target_id == node_id)
 
-    def from_node(self, node_id: str) -> "RelationList":
+    def from_node(self, node_id: str) -> RelationList:
         """Return relations where the node is the source (earlier end)."""
         return self._wrap(r for r in self if r.source_id == node_id)
 
-    def to_node(self, node_id: str) -> "RelationList":
+    def to_node(self, node_id: str) -> RelationList:
         """Return relations where the node is the target (later end)."""
         return self._wrap(r for r in self if r.target_id == node_id)
 
     # --- filters by score / origin ---
 
-    def above(self, min_confidence: float) -> "RelationList":
+    def above(self, min_confidence: float) -> RelationList:
         """Return relations with confidence >= min_confidence."""
         return self._wrap(r for r in self if r.confidence >= min_confidence)
 
-    def below(self, max_confidence: float) -> "RelationList":
+    def below(self, max_confidence: float) -> RelationList:
         """Return relations with confidence < max_confidence (e.g. for review queues)."""
         return self._wrap(r for r in self if r.confidence < max_confidence)
 
-    def by_method(self, method: Union[str, DuplicateMethod]) -> "RelationList":
+    def by_method(self, method: str | DuplicateMethod) -> RelationList:
         """Return relations produced by a specific method/detector."""
         value = method.value if isinstance(method, Enum) else method
         return self._wrap(r for r in self if r.method == value)
@@ -270,11 +269,11 @@ class RelationList(list):
         """Set of all target node ids (for DUPLICATE: the ids flagged to drop)."""
         return {r.target_id for r in self}
 
-    def next_of(self, node_id: str) -> Optional[Relation]:
+    def next_of(self, node_id: str) -> Relation | None:
         """First outgoing relation from `node_id` in this list, or None."""
         return next((r for r in self if r.source_id == node_id), None)
 
-    def sorted_by_confidence(self, descending: bool = True) -> "RelationList":
+    def sorted_by_confidence(self, descending: bool = True) -> RelationList:
         return self._wrap(sorted(self, key=lambda r: r.confidence, reverse=descending))
 
 
@@ -290,7 +289,7 @@ class DocumentIR:
       - relations: confidence-scored edges (continuation, duplicate)
       - derived views (reading order, canonical nodes, chunking units)
     """
-    source: "ExtractionResult"       # untouched raw extraction
+    source: ExtractionResult       # untouched raw extraction
     nodes: NodeList = field(default_factory=NodeList)
     relations: RelationList = field(default_factory=RelationList)
 
@@ -301,7 +300,7 @@ class DocumentIR:
 
     # ---------- node access ----------
 
-    def resolve(self, node: Union[Node, str]) -> Union["ExtractedBlock", "ExtractedTable", None]:
+    def resolve(self, node: Node | str) -> ExtractedBlock | ExtractedTable | None:
         """
         Resolve a Node (or node id) to its raw ExtractedBlock/ExtractedTable
         by looking up `node.source.id` in the underlying ExtractionResult.
@@ -315,7 +314,7 @@ class DocumentIR:
             return self.source.blocks.get(node.source.id)
         return self.source.tables.get(node.source.id)
 
-    def raw(self, node_id: str) -> Union["ExtractedBlock", "ExtractedTable", None]:
+    def raw(self, node_id: str) -> ExtractedBlock | ExtractedTable | None:
         """Alias for resolve(node_id), reads better at call sites."""
         return self.resolve(node_id)
 
@@ -325,7 +324,7 @@ class DocumentIR:
         """Nodes sorted by (order_index, page); unordered nodes sort last."""
         return self.nodes.ordered()
 
-    def relations_of(self, node_id: str, type: Optional[RelationType] = None) -> RelationList:
+    def relations_of(self, node_id: str, type: RelationType | None = None) -> RelationList:
         """All relations touching a node, optionally filtered by type."""
         rels = self.relations.involving(node_id)
         return rels.by_type(type) if type else rels
@@ -334,7 +333,7 @@ class DocumentIR:
         self,
         start_id: str,
         min_confidence: float = 0.0,
-        allowed_ids: Optional[set[str]] = None,
+        allowed_ids: set[str] | None = None,
     ) -> list[str]:
         """
         Full chain of fragment ids (A -> B -> C across pages) starting at a

@@ -18,17 +18,25 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from ..extraction.base import ExtractedTable, TableCell
 from ..ir.document import DocumentIR, Relation, RelationType
 from ..llm import LLMError, LLMProvider
 from ._continuation import (
-    Candidate, build_continuation_messages, compute_facts,
-    continuation_schema, find_candidates, texts,
+    Candidate,
+    build_continuation_messages,
+    compute_facts,
+    continuation_schema,
+    find_candidates,
+    texts,
 )
 from ._structure import (
-    build_header_messages, build_row_messages, detect_issues, header_schema, row_schema,
+    build_header_messages,
+    build_row_messages,
+    detect_issues,
+    header_schema,
+    row_schema,
 )
 from .base import Analyzer
 
@@ -68,7 +76,7 @@ def _same_content(original: list[str], fixed: list[str]) -> bool:
 
 def _generate_json(
     provider: LLMProvider, messages, schema, attempts: int, label: str = ""
-) -> Optional[dict]:
+) -> dict | None:
     """Call the provider with retries; returns a dict or None. `label` ties log lines to a candidate."""
     for attempt in range(1, attempts + 1):
         try:
@@ -106,7 +114,7 @@ class TableContinuationAnalyzer(Analyzer):
 
     def __init__(
         self,
-        provider: Optional[LLMProvider] = None,
+        provider: LLMProvider | None = None,
         sample_rows: int = 3,
         emit_floor: float = 0.15,     # 0.0 = emit every candidate
         accept_at: float = 0.7,       # "likely"/"certain" continuation
@@ -187,14 +195,14 @@ class TableContinuationAnalyzer(Analyzer):
         return messages, facts
 
     @staticmethod
-    def _probability(data: Optional[dict]) -> Optional[float]:
+    def _probability(data: dict | None) -> float | None:
         """P(continuation) from the boolean answer and the coarse certainty bucket."""
         if not data or not isinstance(data.get("is_continuation"), bool):
             return None
         p = _CERTAINTY.get(data.get("certainty"), _CERTAINTY["unsure"])
         return p if data["is_continuation"] else 1.0 - p
 
-    def _ask(self, messages, schema, label: str = "") -> Optional[dict]:
+    def _ask(self, messages, schema, label: str = "") -> dict | None:
         return _generate_json(self.provider, messages, schema, self.attempts, label)  # type: ignore[arg-type]
 
 
@@ -215,7 +223,7 @@ class TableStructureAnalyzer(Analyzer):
 
     def __init__(
         self,
-        provider: Optional[LLMProvider] = None,
+        provider: LLMProvider | None = None,
         max_sample_rows: int = 3,
         attempts: int = 2,
     ):
@@ -290,7 +298,7 @@ class TableStructureAnalyzer(Analyzer):
     # ---- header (one level / row at a time) --------------------------------
     def _repair_header_row(
         self, table: ExtractedTable, i: int, n: int
-    ) -> tuple[Optional[list[TableCell]], Optional[str]]:
+    ) -> tuple[list[TableCell] | None, str | None]:
         row = table.header[i]
 
         # Rule: extra trailing placeholder columns -> drop them (keeps original cells/confidence).
@@ -315,7 +323,7 @@ class TableStructureAnalyzer(Analyzer):
     # ---- rows --------------------------------------------------------------
     def _repair_row(
         self, header_levels: list[list[str]], row: list[TableCell], n: int
-    ) -> tuple[Optional[list[TableCell]], Optional[str]]:
+    ) -> tuple[list[TableCell] | None, str | None]:
         # Rule: extra trailing empty cells -> drop them.
         if len(row) > n and all(not c.content.strip() for c in row[n:]):
             return row[:n], "rule"
@@ -333,5 +341,5 @@ class TableStructureAnalyzer(Analyzer):
         return None, None
 
     # ---- provider call -----------------------------------------------------
-    def _ask(self, messages, schema, label: str = "") -> Optional[dict]:
+    def _ask(self, messages, schema, label: str = "") -> dict | None:
         return _generate_json(self.provider, messages, schema, self.attempts, label)  # type: ignore[arg-type]

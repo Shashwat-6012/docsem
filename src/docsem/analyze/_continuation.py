@@ -12,13 +12,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from typing import Optional
 
 from ..extraction.base import ExtractedTable
 from ..ir.document import DocumentIR, Node
 
 
-def column_count(table: ExtractedTable) -> Optional[int]:
+def column_count(table: ExtractedTable) -> int | None:
     """Single column count if header levels and rows all agree, else None (ragged)."""
     widths = {len(r) for r in table.header} | {len(r) for r in table.rows}
     return widths.pop() if len(widths) == 1 else None
