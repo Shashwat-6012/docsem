@@ -9,6 +9,7 @@ import os
 import sys
 from dataclasses import asdict, is_dataclass
 from pathlib import Path
+from typing import Any, cast
 
 from dotenv import load_dotenv
 
@@ -52,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
 def serialize_document_ir(document_ir: object) -> str:
     """Serialize a DocumentIR instance into formatted JSON."""
     if is_dataclass(document_ir):
-        data = asdict(document_ir)
+        data = asdict(cast(Any, document_ir))
     elif hasattr(document_ir, "model_dump"):
         data = document_ir.model_dump()
     elif hasattr(document_ir, "dict"):

@@ -142,7 +142,7 @@ class Relation:
 #     ir.nodes.on_page(3).tables().ordered()
 
 
-class NodeList(list):
+class NodeList(list[Node]):
     """A list of Nodes with built-in query helpers."""
 
     def _wrap(self, items: Iterable[Node]) -> NodeList:
@@ -227,7 +227,7 @@ class NodeList(list):
         return self._wrap(n for n in self if n.id not in skip)
 
 
-class RelationList(list):
+class RelationList(list[Relation]):
     """A list of Relations with built-in query helpers."""
 
     def _wrap(self, items: Iterable[Relation]) -> RelationList:
@@ -322,9 +322,10 @@ class DocumentIR:
         Returns None if the node or its raw object can't be found.
         """
         if isinstance(node, str):
-            node = self.node(node)
-            if node is None:
+            resolved = self.nodes.get(node)
+            if resolved is None:
                 return None
+            node = resolved
         if node.source.type == NodeKind.BLOCK:
             return self.source.blocks.get(node.source.id)
         return self.source.tables.get(node.source.id)
@@ -356,7 +357,7 @@ class DocumentIR:
         of confidence. Fragments keep their own page-local order_index; no
         rows are merged here.
         """
-        hops = self._continuations_by_source()
+        hops = {r.source_id: r for r in self.relations.continuations()}
         chain = [start_id]
         seen = {start_id}
         current = start_id

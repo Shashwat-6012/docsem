@@ -36,7 +36,9 @@ from docsem.extraction.base import (
     BlockType,
     BoundingBox,
     ExtractedBlock,
+    ExtractedBlockList,
     ExtractedTable,
+    ExtractedTableList,
     ExtractionInput,
     ExtractionResult,
     TableCell,
@@ -346,8 +348,8 @@ class PaddleOCRExtractor(BaseExtractor):
                 self._map_page(data, page_no, w, h, blocks, tables, raw_parts, warnings)
 
         return ExtractionResult(
-            blocks=blocks,
-            tables=tables,
+            blocks=ExtractedBlockList(blocks),
+            tables=ExtractedTableList(tables),
             raw_text="\n\n".join(p for p in raw_parts if p),
             provider=self.provider_name,
             page_count=pages_done,

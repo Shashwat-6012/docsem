@@ -112,10 +112,10 @@ class ExtractedTable:
 # Created for querying and filtering extracted blocks and tables more easily.
 
 
-class ExtractedBlockList(list):
+class ExtractedBlockList(list[ExtractedBlock]):
     """A list of ExtractedBlocks with built-in query helpers."""
 
-    def get(self, block_id: str) -> Any | None:
+    def get(self, block_id: str) -> ExtractedBlock | None:
         """Get a single block by its ID."""
         return next((b for b in self if b.id == block_id), None)
 
@@ -132,10 +132,10 @@ class ExtractedBlockList(list):
         return [b for b in self if b.type == block_type]
 
 
-class ExtractedTableList(list):
+class ExtractedTableList(list[ExtractedTable]):
     """A list of ExtractedTables with built-in query helpers."""
 
-    def get(self, table_id: str) -> Any | None:
+    def get(self, table_id: str) -> ExtractedTable | None:
         """Get a single table by its ID."""
         return next((t for t in self if t.id == table_id), None)
 

@@ -55,6 +55,7 @@ build-backend = "uv_build"
 dev = [
     "mypy>=2.4.0",
     "pre-commit>=4.6.2",
+    "pytest>=8.0",
     "ruff>=0.16.10",
 ]
 
@@ -90,5 +91,5 @@ disallow_untyped_defs = false    # flip to true once the public API is annotated
 
 # Third-party libs without type stubs
 [[tool.mypy.overrides]]
-module = ["llama_cpp.*", "paddle.*", "paddleocr.*"]
+module = ["llama_cpp.*", "paddle.*", "paddleocr.*", "pypdfium2"]
 ignore_missing_imports = true

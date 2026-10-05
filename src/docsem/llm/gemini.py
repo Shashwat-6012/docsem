@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from typing import Any, cast
 
 from .base import LLMProvider, Message
 
@@ -47,7 +48,7 @@ class GeminiProvider(LLMProvider):
     def _complete(self, messages: list[Message], schema: dict, max_tokens: int) -> str:
         system, steps = self._to_steps(messages)
 
-        kwargs = dict(
+        kwargs: dict[str, Any] = dict(
             model=self.model,
             input=steps,
             response_format={
@@ -63,4 +64,4 @@ class GeminiProvider(LLMProvider):
         with self._lock:
             interaction = self._client.interactions.create(**kwargs)
             print(interaction.output_text)
-        return interaction.output_text
+        return cast(str, interaction.output_text)

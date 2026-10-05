@@ -3,20 +3,25 @@ import logging
 import pytest
 
 from docsem.api import DocSem
-from docsem.extraction.base import ExtractionResult
+from docsem.extraction.base import BaseExtractor, ExtractionInput, ExtractionResult
+from docsem.ir.build import IRBuilder
+from docsem.ir.document import DocumentIR
 
 
-class FakeExtractor:
-    def __init__(self, result):
+class FakeExtractor(BaseExtractor):
+    def __init__(self, result: ExtractionResult):
         self.result = result
 
-    def extract(self, input_data):
+    def extract(self, input_data: ExtractionInput) -> ExtractionResult:
         return self.result
 
 
-class FakeBuilder:
-    def build(self, result):
-        return {"page_count": result.page_count}
+class FakeBuilder(IRBuilder):
+    def __init__(self):
+        pass
+
+    def build(self, result: ExtractionResult) -> DocumentIR:
+        return DocumentIR(source=result)
 
 
 @pytest.fixture
