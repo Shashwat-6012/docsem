@@ -90,7 +90,7 @@ class TableCell:
 class ExtractedTable:
     """A table: one header row and a list of data rows, order-preserved.
     No row/col indices — position is implicit in list order."""
-    header: list[TableCell]
+    header: list[list[TableCell]]
     rows: list[list[TableCell]]
     id: str = field(default_factory=lambda: str(uuid.uuid4()))
     bbox: Optional[BoundingBox] = None
