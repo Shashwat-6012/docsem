@@ -38,6 +38,15 @@ name = "paddle-cpu"
 url = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
 explicit = true
 
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+docsem = ["py.typed"]
+
 [build-system]
 requires = ["uv_build>=0.12.12,<0.13.0"]
 build-backend = "uv_build"
