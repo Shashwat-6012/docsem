@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Install lint dependencies
+        run: uv sync --frozen --only-group dev --no-install-project
+
+      - name: Check lint
+        run: uv run --frozen --no-sync ruff check .
+
+      - name: Check formatting
+        run: uv run --frozen --no-sync ruff format --check .
+
+      - name: Check types
+        run: uv run --frozen --no-sync mypy src tests
+
+      - name: Run tests
+        run: uv run --frozen --no-sync pytest
+        env:
+          PYTHONPATH: src
+
+  build:
+    name: Build package
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Build package
+        run: uv build --no-sources
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package
+          path: dist/*
+          if-no-files-found: error
