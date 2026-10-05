@@ -1,7 +1,7 @@
 import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +19,7 @@ class ExtractionInput:
 # ---------- Shared ----------
 
 
-class BlockType(str, Enum):
+class BlockType(StrEnum):
     TEXT = "text"
     HEADING = "heading"
     IMAGE = "image"

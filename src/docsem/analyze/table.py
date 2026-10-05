@@ -70,14 +70,20 @@ def _is_str_list(value: Any, n: int) -> TypeGuard[list[str]]:
 
 def _same_content(original: list[str], fixed: list[str]) -> bool:
     """Realigning/splitting/merging cells must not add or drop characters (ignoring spaces)."""
-    squash = lambda cells: "".join("".join(cells).split())
+
+    def squash(cells: list[str]) -> str:
+        return "".join("".join(cells).split())
+
     return squash(original) == squash(fixed)
 
 
 def _generate_json(
     provider: LLMProvider, messages, schema, attempts: int, label: str = ""
 ) -> dict | None:
-    """Call the provider with retries; returns a dict or None. `label` ties log lines to a candidate."""
+    """Call the provider with retries; return a dict or None.
+
+    `label` ties log lines to a candidate.
+    """
     for attempt in range(1, attempts + 1):
         try:
             data = provider.generate_json(messages, schema)
@@ -150,7 +156,7 @@ class TableContinuationAnalyzer(Analyzer):
                 pool.map(lambda j: self._ask(j[1], schema, f"{j[0].prev.id}->{j[0].nxt.id}"), jobs)
             )
 
-        for (c, _, facts), data in zip(jobs, verdicts):
+        for (c, _, facts), data in zip(jobs, verdicts, strict=False):
             p = self._probability(data)
             if p is None or data is None:
                 logger.warning("no usable verdict for %s -> %s", c.prev.id, c.nxt.id)
