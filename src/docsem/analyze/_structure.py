@@ -111,7 +111,7 @@ def build_header_messages(
     return [{"role": "system", "content": _HEADER_SYSTEM}, {"role": "user", "content": user}]
 
 
-def build_row_messages(header: Sequence[str], row: Sequence[str]) -> list[Message]:
+def build_row_messages(header: Sequence[Sequence[str]], row: Sequence[str]) -> list[Message]:
     user = (
         'Example input:\nHeader: ["Date", "Customer", "Amount", "Status"]\n'
         'Malformed row: ["2026-01-02", "Mary Ann", "$80"]\n'

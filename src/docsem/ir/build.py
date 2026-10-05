@@ -14,7 +14,7 @@ from ..analyze.read import ReadingOrderAnalyzer
 from ..analyze.table import TableContinuationAnalyzer, TableStructureAnalyzer
 from ..extraction.base import ExtractionResult
 from ..llm import create_provider
-from .document import DocumentIR, Node, NodeKind, NodeSource
+from .document import DocumentIR, Node, NodeKind, NodeList, NodeSource
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ class IRBuilder:
             "building IR from %d blocks and %d tables", len(result.blocks), len(result.tables)
         )
         nodes = self._extraction_result_to_nodes(result)
-        doc_ir = DocumentIR(source=result, nodes=nodes)
+        doc_ir = DocumentIR(source=result, nodes=NodeList(nodes))
         return self.pipeline.run(doc_ir)
 
     def _extraction_result_to_nodes(self, result: ExtractionResult) -> list[Node]:

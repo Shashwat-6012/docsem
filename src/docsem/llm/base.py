@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, TypedDict, cast
 
 
 class Message(TypedDict):
@@ -27,7 +27,7 @@ class LLMProvider(ABC):
     ) -> dict[str, Any]:
         raw = self._complete(list(messages), schema, max_tokens)
         try:
-            return json.loads(_strip_fences(raw))
+            return cast(dict[str, Any], json.loads(_strip_fences(raw)))
         except json.JSONDecodeError as e:
             raise LLMError(f"Provider returned invalid JSON: {raw[:200]!r}") from e
 

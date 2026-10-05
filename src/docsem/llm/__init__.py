@@ -1,4 +1,5 @@
 from importlib import import_module
+from typing import cast
 
 from .base import LLMError, LLMProvider, Message
 
@@ -13,7 +14,7 @@ def create_provider(name: str, **kwargs) -> LLMProvider:
         module, cls = _REGISTRY[name]
     except KeyError:
         raise ValueError(f"Unknown provider {name!r}; choose from {sorted(_REGISTRY)}") from None
-    return getattr(import_module(module), cls)(**kwargs)  # lazy: heavy deps load only if used
+    return cast(LLMProvider, getattr(import_module(module), cls)(**kwargs))
 
 
 __all__ = ["LLMProvider", "LLMError", "Message", "create_provider"]

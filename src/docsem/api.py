@@ -101,7 +101,7 @@ class DocSem:
                 for page_no in range(1, page_count + 1):
                     aggregator.add("no_text_layer", page_no)
 
-            start_extra = {"docsem_doc_id": doc_id}
+            start_extra: dict[str, str | int] = {"docsem_doc_id": doc_id}
             if page_count is not None:
                 start_extra["docsem_pages_total"] = page_count
             logger.info("document processing started", extra=start_extra)
@@ -112,7 +112,7 @@ class DocSem:
         finally:
             aggregator.flush()
             if document_ir is not None:
-                finish_extra = {"docsem_doc_id": doc_id}
+                finish_extra: dict[str, str | int] = {"docsem_doc_id": doc_id}
                 if page_count is not None:
                     finish_extra["docsem_pages_total"] = page_count
                 finish_extra["docsem_pages_ok"] = 1

@@ -18,7 +18,7 @@ from __future__ import annotations
 import logging
 import re
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any, ClassVar
+from typing import Any, ClassVar, TypeGuard, cast
 
 from ..extraction.base import ExtractedTable, TableCell
 from ..ir.document import DocumentIR, Relation, RelationType
@@ -64,7 +64,7 @@ def _cells(values: list[str]) -> list[TableCell]:
     return [TableCell(content=t) for t in values]  # LLM output -> confidence None
 
 
-def _is_str_list(value: Any, n: int) -> bool:
+def _is_str_list(value: Any, n: int) -> TypeGuard[list[str]]:
     return isinstance(value, list) and len(value) == n and all(isinstance(v, str) for v in value)
 
 
@@ -152,7 +152,7 @@ class TableContinuationAnalyzer(Analyzer):
 
         for (c, _, facts), data in zip(jobs, verdicts):
             p = self._probability(data)
-            if p is None:
+            if p is None or data is None:
                 logger.warning("no usable verdict for %s -> %s", c.prev.id, c.nxt.id)
                 continue
             status = (
@@ -213,7 +213,10 @@ class TableContinuationAnalyzer(Analyzer):
         """P(continuation) from the boolean answer and the coarse certainty bucket."""
         if not data or not isinstance(data.get("is_continuation"), bool):
             return None
-        p = _CERTAINTY.get(data.get("certainty"), _CERTAINTY["unsure"])
+        certainty = data.get("certainty")
+        if not isinstance(certainty, str):
+            certainty = "unsure"
+        p = _CERTAINTY.get(certainty, _CERTAINTY["unsure"])
         return p if data["is_continuation"] else 1.0 - p
 
     def _ask(self, messages, schema, label: str = "") -> dict | None:
@@ -305,9 +308,9 @@ class TableStructureAnalyzer(Analyzer):
                         record["unresolved_rows"].remove(i)
 
     @staticmethod
-    def _record(table: ExtractedTable, n: int) -> dict:
+    def _record(table: ExtractedTable, n: int) -> dict[str, Any]:
         """Get-or-create the audit record (merges with any earlier run)."""
-        record = table.metadata.setdefault(METADATA_KEY, {})
+        record = cast(dict[str, Any], table.metadata.setdefault(METADATA_KEY, {}))
         record["expected_cols"] = n
         record.setdefault("rows", {})
         record.setdefault("unresolved_rows", [])
@@ -329,7 +332,7 @@ class TableStructureAnalyzer(Analyzer):
 
         sample = [_texts(r) for r in table.rows if len(r) == n][: self.max_sample_rows]
         data = self._ask(
-            build_header_messages(_texts(row), sample, n),
+            build_header_messages([_texts(header) for header in table.header], i, sample, n),
             header_schema(n),
             f"{table.id}:header[{i}]",
         )

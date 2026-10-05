@@ -5,6 +5,7 @@ Requires: pip install azure-ai-formrecognizer azure-core
 """
 
 import logging
+from typing import cast
 
 from azure.ai.formrecognizer import DocumentAnalysisClient
 from azure.core.credentials import AzureKeyCredential
@@ -14,7 +15,9 @@ from ..base import (
     BlockType,
     BoundingBox,
     ExtractedBlock,
+    ExtractedBlockList,
     ExtractedTable,
+    ExtractedTableList,
     ExtractionInput,
     ExtractionResult,
     TableCell,
@@ -69,8 +72,8 @@ class AzureExtractor(BaseExtractor):
         tables = self._map_tables(result, page_dims=page_dims, warnings=warnings)
 
         return ExtractionResult(
-            blocks=blocks,
-            tables=tables,
+            blocks=ExtractedBlockList(blocks),
+            tables=ExtractedTableList(tables),
             raw_text=result.content or "",
             provider=self.provider_name,
             page_count=len(result.pages) if result.pages else 0,
@@ -93,13 +96,13 @@ class AzureExtractor(BaseExtractor):
         return warnings
 
     @staticmethod
-    def _page_dims(result) -> dict[int, tuple[float, float, str]]:
+    def _page_dims(result) -> dict[int, tuple[float, float, str | None]]:
         """page_number -> (width, height, unit) for every page in the result.
         Needed to turn each polygon's absolute coordinates into normalized
         [0,1] fractions. Azure reports unit as 'inch' or 'pixel' depending on
         whether the page came from a native PDF text layer or a rasterized
         image/scan."""
-        dims = {}
+        dims: dict[int, tuple[float, float, str | None]] = {}
         for page in getattr(result, "pages", None) or []:
             width = getattr(page, "width", None)
             height = getattr(page, "height", None)
@@ -116,7 +119,7 @@ class AzureExtractor(BaseExtractor):
         self,
         result,
         skip_ranges: list[tuple[int, int]],
-        page_dims: dict[int, tuple[float, float, str]],
+        page_dims: dict[int, tuple[float, float, str | None]],
         warnings: list[str],
     ) -> list[ExtractedBlock]:
         blocks: list[ExtractedBlock] = []
@@ -128,7 +131,7 @@ class AzureExtractor(BaseExtractor):
         self,
         result,
         skip_ranges: list[tuple[int, int]],
-        page_dims: dict[int, tuple[float, float, str]],
+        page_dims: dict[int, tuple[float, float, str | None]],
         warnings: list[str],
     ) -> list[ExtractedBlock]:
         blocks = []
@@ -162,7 +165,7 @@ class AzureExtractor(BaseExtractor):
     def _map_key_value_pairs(
         self,
         result,
-        page_dims: dict[int, tuple[float, float, str]],
+        page_dims: dict[int, tuple[float, float, str | None]],
         warnings: list[str],
     ) -> list[ExtractedBlock]:
         blocks = []
@@ -207,7 +210,7 @@ class AzureExtractor(BaseExtractor):
     def _map_tables(
         self,
         result,
-        page_dims: dict[int, tuple[float, float, str]],
+        page_dims: dict[int, tuple[float, float, str | None]],
         warnings: list[str],
     ) -> list[ExtractedTable]:
         tables = []
@@ -313,7 +316,7 @@ class AzureExtractor(BaseExtractor):
     def _first_bbox(
         self,
         bounding_regions,
-        page_dims: dict[int, tuple[float, float, str]],
+        page_dims: dict[int, tuple[float, float, str | None]],
         warnings: list[str],
         context: str = "",
     ) -> BoundingBox | None:
@@ -328,12 +331,12 @@ class AzureExtractor(BaseExtractor):
     @staticmethod
     def _region_to_bbox(
         region,
-        page_dims: dict[int, tuple[float, float, str]],
+        page_dims: dict[int, tuple[float, float, str | None]],
         warnings: list[str],
         context: str = "",
     ) -> BoundingBox | None:
         poly = getattr(region, "polygon", None)
-        page_number = getattr(region, "page_number", None)
+        page_number: int | None = getattr(region, "page_number", None)
 
         if not poly:
             warnings.append(
@@ -383,7 +386,7 @@ class AzureExtractor(BaseExtractor):
                 y0=y0 / page_height,
                 x1=x1 / page_width,
                 y1=y1 / page_height,
-                page=page_number,
+                page=cast(int, page_number),
                 page_width=page_width,
                 page_height=page_height,
                 page_unit=page_unit,

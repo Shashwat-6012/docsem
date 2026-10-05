@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import threading
+from typing import cast
 
 from .base import LLMProvider, Message, fold_system
 
@@ -63,4 +64,4 @@ class LlamaCppProvider(LLMProvider):
                 temperature=0.0,
                 max_tokens=max_tokens,
             )
-        return out["choices"][0]["message"]["content"]
+        return cast(str, out["choices"][0]["message"]["content"])

@@ -46,7 +46,7 @@ def find_candidates(ir: DocumentIR) -> list[Candidate]:
         if nxt.page != prev.page + 1:
             continue
         pt, nt = ir.resolve(prev), ir.resolve(nxt)
-        if pt is None or nt is None:
+        if not isinstance(pt, ExtractedTable) or not isinstance(nt, ExtractedTable):
             continue
         a, b = column_count(pt), column_count(nt)
         if a is None or a != b:
