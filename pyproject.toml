@@ -91,5 +91,15 @@ disallow_untyped_defs = false    # flip to true once the public API is annotated
 
 # Third-party libs without type stubs
 [[tool.mypy.overrides]]
-module = ["llama_cpp.*", "paddle.*", "paddleocr.*", "pypdfium2"]
+module = [
+    "azure.*",
+    "cv2",
+    "dotenv",
+    "google.*",
+    "llama_cpp.*",
+    "numpy",
+    "paddle.*",
+    "paddleocr.*",
+    "pypdfium2",
+]
 ignore_missing_imports = true
