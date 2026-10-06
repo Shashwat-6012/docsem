@@ -1,55 +1,79 @@
 [project]
 name = "docsem"
 version = "0.1.0"
-license = "MIT"
-license-files = ["LICENSE"]
 description = "A python module that converts input documents into Standardized Representations"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
 requires-python = ">=3.12,<3.14"
+# TODO: add your own details before publishing (PyPI does not require them)
+# authors = [{ name = "Shashwat Suthar", email = "shashwat.suthar.comp@gmail.com" }]
+keywords = ["document", "pdf", "ocr", "table-extraction", "document-intelligence", "llm"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Text Processing",
+    "Typing :: Typed",
+]
+
+# Base install = lightweight cloud providers (Azure extraction, Gemini analysis).
+# Heavy local-compute providers (PaddleOCR, llama.cpp) live in extras below.
 dependencies = [
     "azure-ai-formrecognizer>=3.3.3",
     "azure-core>=1.41.0",
-    "dotenv>=0.9.9",
-    "paddleocr[doc-parser]>=3.7.0",
-    "paddlepaddle==3.3.0",
+    "google-genai>=2.25.0",
     "pypdfium2>=5.14.0",
+    "python-dotenv>=1.0.0",
 ]
-
-[project.scripts]
-generate = "docsem.cli:main"
 
 [project.optional-dependencies]
-gemini = [
-    "google-genai>=2.25.0",
+paddle = [
+    "paddlepaddle>=3.3,<3.4",
+    "paddleocr[doc-parser]>=3.7.0",
 ]
-llama = ["llama-cpp-python>=0.3", "huggingface-hub"]
+llama = [
+    "llama-cpp-python>=0.3",
+    "huggingface-hub>=0.24",
+]
+all = ["docsem[paddle,llama]"]
 
+# TODO: fill in once the repo is public
+# [project.urls]
+# Homepage = "https://github.com/Shashwat-6012/docsem"
+# Issues = "https://github.com/Shashwat-6012/docsem/issues"
+
+[project.scripts]
+docsem = "docsem.cli:main"
+
+[build-system]
+requires = ["uv_build>=0.12.12,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "docsem"
+module-root = "src"
+
+# ---------------------------------------------------------------------------
+# uv-only settings: these apply to development in THIS repo (uv sync / uv lock).
+# They are NOT part of the published package, so pip users never see them.
+# ---------------------------------------------------------------------------
 [tool.uv.sources]
 llama-cpp-python = { index = "llama-cpu" }
-paddlepaddle = { index = "paddle-cpu" }
 
 [[tool.uv.index]]
 name = "llama-cpu"
 url = "https://abetlen.github.io/llama-cpp-python/whl/cpu"
 explicit = true
 
+# Publishing target: `uv publish --index testpypi`
 [[tool.uv.index]]
-name = "paddle-cpu"
-url = "https://www.paddlepaddle.org.cn/packages/stable/cpu/"
+name = "testpypi"
+url = "https://test.pypi.org/simple/"
+publish-url = "https://test.pypi.org/legacy/"
 explicit = true
-
-[tool.setuptools]
-package-dir = {"" = "src"}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-docsem = ["py.typed"]
-
-[build-system]
-requires = ["uv_build>=0.12.12,<0.13.0"]
-build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
@@ -61,7 +85,7 @@ dev = [
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py312"
 src = ["src", "tests"]
 
 [tool.ruff.lint]
