@@ -40,10 +40,11 @@ llama = [
 ]
 all = ["docsem[paddle,llama]"]
 
-# TODO: fill in once the repo is public
-# [project.urls]
-# Homepage = "https://github.com/Shashwat-6012/docsem"
-# Issues = "https://github.com/Shashwat-6012/docsem/issues"
+[project.urls]
+Homepage = "https://github.com/Shashwat-6012/docsem"
+Repository = "https://github.com/Shashwat-6012/docsem"
+Documentation = "https://github.com/Shashwat-6012/docsem/blob/main/docs/usage.md"
+Issues = "https://github.com/Shashwat-6012/docsem/issues"
 
 [project.scripts]
 docsem = "docsem.cli:main"
