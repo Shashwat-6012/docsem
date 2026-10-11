@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
+  workflow_call:
 
 permissions:
   contents: read
@@ -13,61 +15,91 @@ concurrency:
 
 jobs:
   lint:
-    name: Lint
+    name: Lint & types
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
         with:
           enable-cache: true
           cache-dependency-glob: uv.lock
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
 
-      - name: Install lint dependencies
+      - name: Install dependencies
         run: uv sync --frozen
 
-      - name: Check lint
+      - name: Ruff lint
         run: uv run --frozen --no-sync ruff check .
 
-      - name: Check formatting
+      - name: Ruff format
         run: uv run --frozen --no-sync ruff format --check .
 
-      - name: Check types
+      - name: Mypy
         run: uv run --frozen --no-sync mypy src tests
 
-      - name: Run tests
+  test:
+    name: Tests (py${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13"]
+    env:
+      UV_PYTHON: ${{ matrix.python-version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Pytest
         run: uv run --frozen --no-sync pytest
         env:
           PYTHONPATH: src
 
   build:
-    name: Build package
-    needs: lint
+    name: Build & validate package
+    needs: [lint, test]
     runs-on: ubuntu-latest
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version-file: .python-version
 
-      - name: Build package
+      - name: Build sdist + wheel
         run: uv build --no-sources
 
-      - name: Upload build artifacts
-        uses: actions/upload-artifact@v4
+      - name: Validate metadata (twine)
+        run: uvx twine check --strict dist/*
+
+      - name: List wheel contents
+        run: python -m zipfile -l dist/*.whl
+
+      - name: Smoke-test wheel (base install only, no extras)
+        run: |
+          uv venv "$RUNNER_TEMP/smoke"
+          uv pip install --python "$RUNNER_TEMP/smoke/bin/python" dist/*.whl
+          "$RUNNER_TEMP/smoke/bin/python" -c "import docsem; print(docsem.__version__)"
+          "$RUNNER_TEMP/smoke/bin/docsem" --help
+
+      - uses: actions/upload-artifact@v4
         with:
           name: python-package
           path: dist/*
