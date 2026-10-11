@@ -557,19 +557,25 @@ source = { editable = "." }
 dependencies = [
     { name = "azure-ai-formrecognizer" },
     { name = "azure-core" },
-    { name = "dotenv" },
-    { name = "paddleocr", extra = ["doc-parser"] },
-    { name = "paddlepaddle" },
+    { name = "google-genai" },
     { name = "pypdfium2" },
+    { name = "python-dotenv" },
 ]
 
 [package.optional-dependencies]
-gemini = [
-    { name = "google-genai" },
+all = [
+    { name = "huggingface-hub" },
+    { name = "llama-cpp-python" },
+    { name = "paddleocr", extra = ["doc-parser"] },
+    { name = "paddlepaddle" },
 ]
 llama = [
     { name = "huggingface-hub" },
     { name = "llama-cpp-python" },
+]
+paddle = [
+    { name = "paddleocr", extra = ["doc-parser"] },
+    { name = "paddlepaddle" },
 ]
 
 [package.dev-dependencies]
@@ -584,15 +590,16 @@ dev = [
 requires-dist = [
     { name = "azure-ai-formrecognizer", specifier = ">=3.3.3" },
     { name = "azure-core", specifier = ">=1.41.0" },
-    { name = "dotenv", specifier = ">=0.9.9" },
-    { name = "google-genai", marker = "extra == 'gemini'", specifier = ">=2.25.0" },
-    { name = "huggingface-hub", marker = "extra == 'llama'" },
+    { name = "docsem", extras = ["paddle", "llama"], marker = "extra == 'all'" },
+    { name = "google-genai", specifier = ">=2.25.0" },
+    { name = "huggingface-hub", marker = "extra == 'llama'", specifier = ">=0.24" },
     { name = "llama-cpp-python", marker = "extra == 'llama'", specifier = ">=0.3", index = "https://abetlen.github.io/llama-cpp-python/whl/cpu" },
-    { name = "paddleocr", extras = ["doc-parser"], specifier = ">=3.7.0" },
-    { name = "paddlepaddle", specifier = "==3.3.0", index = "https://www.paddlepaddle.org.cn/packages/stable/cpu/" },
+    { name = "paddleocr", extras = ["doc-parser"], marker = "extra == 'paddle'", specifier = ">=3.7.0" },
+    { name = "paddlepaddle", marker = "extra == 'paddle'", specifier = ">=3.3,<3.4" },
     { name = "pypdfium2", specifier = ">=5.14.0" },
+    { name = "python-dotenv", specifier = ">=1.0.0" },
 ]
-provides-extras = ["gemini", "llama"]
+provides-extras = ["paddle", "llama", "all"]
 
 [package.metadata.requires-dev]
 dev = [
@@ -600,17 +607,6 @@ dev = [
     { name = "pre-commit", specifier = ">=4.6.2" },
     { name = "pytest", specifier = ">=8.0" },
     { name = "ruff", specifier = ">=0.16.10" },
-]
-
-[[package]]
-name = "dotenv"
-version = "0.9.9"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "python-dotenv" },
-]
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/b2/b7/545d2c10c1fc15e48653c91efde329a790f2eecfbbf2bd16003b5db2bab0/dotenv-0.9.9-py2.py3-none-any.whl", hash = "sha256:29cf74a087b31dafdb5a446b6d7e11cbce8ed2741540e2339c69fbef92c94ce9", size = 1892, upload-time = "2025-02-19T22:15:01.647Z" },
 ]
 
 [[package]]
@@ -1469,7 +1465,7 @@ doc-parser = [
 [[package]]
 name = "paddlepaddle"
 version = "3.3.0"
-source = { registry = "https://www.paddlepaddle.org.cn/packages/stable/cpu/" }
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "networkx" },
@@ -1482,14 +1478,12 @@ dependencies = [
     { name = "typing-extensions" },
 ]
 wheels = [
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp312-cp312-linux_aarch64.whl" },
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp312-cp312-linux_x86_64.whl" },
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp312-cp312-macosx_11_0_arm64.whl" },
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp312-cp312-win_amd64.whl" },
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp313-cp313-linux_aarch64.whl" },
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp313-cp313-linux_x86_64.whl" },
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp313-cp313-macosx_11_0_arm64.whl" },
-    { url = "https://paddle-whl.cdn.bcebos.com/stable/cpu/paddlepaddle/paddlepaddle-3.3.0-cp313-cp313-win_amd64.whl" },
+    { url = "https://files.pythonhosted.org/packages/22/07/1aacbce9ad8989c621d4cbd91945dd1d6ed01b315f46f925fb4bbcabb971/paddlepaddle-3.3.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:17aab6b90d8cef2ccf893f4be82cf05e906e21fe86c40a34fea6701937d7782b", size = 103701539, upload-time = "2026-01-13T09:19:10.174Z" },
+    { url = "https://files.pythonhosted.org/packages/7e/ad/93342171c84f95331b2823c57b77de5aa80b13079927f3fdee5eee459f8b/paddlepaddle-3.3.0-cp312-cp312-manylinux1_x86_64.whl", hash = "sha256:3ee996ee2bf2d2b33e9865876fb82ff03cb7bb2246cc5aa0027edd6a9a0640eb", size = 193740207, upload-time = "2026-01-13T09:01:48.188Z" },
+    { url = "https://files.pythonhosted.org/packages/12/52/632b1013923a67cbcc778e6e1a308f3848f699f80024a737940e5e17b52a/paddlepaddle-3.3.0-cp312-cp312-win_amd64.whl", hash = "sha256:f19a6a0728103b6b6b6b85726ac39fb77277d72ffff08d66ca3a8a97f0759a02", size = 104281149, upload-time = "2026-01-13T09:36:51.506Z" },
+    { url = "https://files.pythonhosted.org/packages/1c/ea/909737cf298cdbdaa2b2a9b16961e3883802cc600f9b7dc8331e5f80e374/paddlepaddle-3.3.0-cp313-cp313-macosx_11_0_arm64.whl", hash = "sha256:b56781354b18063f43a87f3d562ada5a4f8a437fe2312ab1032fa89ad5a54ec0", size = 103703459, upload-time = "2026-01-13T09:21:39.399Z" },
+    { url = "https://files.pythonhosted.org/packages/0d/b7/1d9e9170a5efc3a2188df6899b4279d650be222b0987cbfe0f14668b467b/paddlepaddle-3.3.0-cp313-cp313-manylinux1_x86_64.whl", hash = "sha256:88898274f5cd5e2f4ebaf5631d4c00927d9d58465a083875c224b40f9935cd39", size = 193732176, upload-time = "2026-01-13T09:05:36.068Z" },
+    { url = "https://files.pythonhosted.org/packages/8c/1c/04d8fa9181cb0ec409271ab35c496c0fd0641ba9e8ffd118d15358791f93/paddlepaddle-3.3.0-cp313-cp313-win_amd64.whl", hash = "sha256:e999a2dcdb33597f2ddf8971f4eec362bc1a21c347ffaeae9ddeea9f0f51c9dd", size = 104279406, upload-time = "2026-01-13T09:39:09.178Z" },
 ]
 
 [[package]]

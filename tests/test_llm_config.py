@@ -3,6 +3,7 @@ from unittest.mock import Mock
 import pytest
 
 from docsem.analyze.factory import AnalyzerFactory
+from docsem.analyze.table import TableContinuationAnalyzer, TableStructureAnalyzer
 from docsem.api import DocSem
 from docsem.config import AnalysisConfig, DocSemConfig
 from docsem.exceptions import ConfigurationError
@@ -23,7 +24,11 @@ def test_analysis_config_can_disable_llm_for_every_analyzer():
 
     analyzers = AnalyzerFactory(config, provider_factory=provider_factory).build()
 
-    assert all(analyzer.provider is None for analyzer in analyzers)
+    assert all(
+        isinstance(analyzer, (TableStructureAnalyzer, TableContinuationAnalyzer))
+        and analyzer.provider is None
+        for analyzer in analyzers
+    )
     provider_factory.assert_not_called()
 
 
@@ -33,8 +38,10 @@ def test_none_override_disables_only_the_selected_analyzer():
 
     analyzers = AnalyzerFactory(config, provider_factory=lambda _config: provider).build()
 
+    assert isinstance(analyzers[0], TableStructureAnalyzer)
     assert analyzers[0].name == "table_structure"
     assert analyzers[0].provider is None
+    assert isinstance(analyzers[1], TableContinuationAnalyzer)
     assert analyzers[1].name == "table_continuation"
     assert analyzers[1].provider is provider
 

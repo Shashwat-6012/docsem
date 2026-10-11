@@ -222,6 +222,12 @@ config = ExtractorConfig(
 extractor = build_extractor(config)
 ```
 
+Azure `endpoint` and `api_key` options override the `AZURE_ENDPOINT` and
+`AZURE_API_KEY` environment variables, respectively. If either option is
+omitted, its environment variable is used. Both values are required after
+this fallback; otherwise, `build_extractor()` raises `ConfigurationError`.
+`model_id` remains optional and defaults to `prebuilt-document`.
+
 Supported providers today:
 
 - `ProviderName.AZURE`

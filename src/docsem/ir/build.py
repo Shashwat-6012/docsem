@@ -8,27 +8,35 @@ shape later, this is the only file that needs to change.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 
 from ..analyze.base import Analyzer, AnalyzerPipeline
+from ..analyze.factory import AnalyzerFactory
 from ..analyze.read import ReadingOrderAnalyzer
-from ..analyze.table import TableContinuationAnalyzer, TableStructureAnalyzer
+from ..config import AnalysisConfig
 from ..extraction.base import ExtractionResult
-from ..llm import create_provider
+from ..llm.base import LLMProvider
+from ..llm.factory import LLMConfig
 from .document import DocumentIR, Node, NodeKind, NodeList, NodeSource
 
 logger = logging.getLogger(__name__)
 
 
 class IRBuilder:
-    def __init__(self, analyzers: list[Analyzer] | None = None):
-        self.provider = create_provider("gemini")
+    def __init__(
+        self,
+        analyzers: list[Analyzer] | None = None,
+        *,
+        analysis_config: AnalysisConfig | None = None,
+        provider_factory: Callable[[LLMConfig], LLMProvider] | None = None,
+    ) -> None:
         configured = (
             analyzers
             if analyzers is not None
-            else [
-                TableStructureAnalyzer(provider=self.provider),
-                TableContinuationAnalyzer(provider=self.provider),
-            ]
+            else AnalyzerFactory(
+                analysis_config or AnalysisConfig(),
+                provider_factory=provider_factory,
+            ).build()
         )
         configured = [analyzer for analyzer in configured if analyzer.name != "reading_order"]
         self.pipeline = AnalyzerPipeline([ReadingOrderAnalyzer(), *configured])

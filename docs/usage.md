@@ -17,13 +17,11 @@ from docsem.ir.document import DocumentIR, NodeKind, RelationType
 
 `DocSem` takes a `DocSemConfig`; its `extraction` field contains an `ExtractorConfig`. The built-in factory currently supports Azure and PaddleOCR.
 
-If `DocSem()` is constructed without a config, its default extraction provider is PaddleOCR. Since PaddleOCR is in the optional `paddle` extra, a plain `pip install docsem` user should either install `docsem[paddle]` or explicitly configure the Azure provider as shown below.
+If `DocSem()` is constructed without a config, its default extraction provider is Azure, which is included in the base installation. When `endpoint` or `api_key` is missing from the extraction options, the factory falls back to `AZURE_ENDPOINT` and `AZURE_API_KEY`. Explicit options take precedence over environment variables.
 
 ### Azure AI Document Intelligence
 
 ```python
-import os
-
 from docsem.api import DocSem
 from docsem.config import DocSemConfig, ExtractorConfig, ProviderName
 
@@ -31,8 +29,8 @@ config = DocSemConfig(
     extraction=ExtractorConfig(
         provider=ProviderName.AZURE,
         options={
-            "endpoint": os.environ["AZURE_ENDPOINT"],
-            "api_key": os.environ["AZURE_API_KEY"],
+            "endpoint": "https://example.cognitiveservices.azure.com/",
+            "api_key": "<your-key>",
             "model_id": "prebuilt-document",
         },
     )
@@ -41,7 +39,7 @@ config = DocSemConfig(
 document = DocSem(config).process("input.pdf")
 ```
 
-`endpoint` and `api_key` are required. `model_id` is optional and defaults to `prebuilt-document`. Azure configuration is passed through the Python API; the SDK does not load a `.env` file automatically. The package's `python-dotenv` dependency can be used with an explicit `load_dotenv()` call in your application.
+`model_id` is optional and defaults to `prebuilt-document`. Instead of passing credentials in options, set `AZURE_ENDPOINT` and `AZURE_API_KEY` in the environment; each option independently falls back to its matching variable. The Python API does not load a `.env` file automatically. The CLI does load `.env`; for Python applications, use `python-dotenv`'s explicit `load_dotenv()` call if desired.
 
 ### PaddleOCR
 
@@ -251,4 +249,4 @@ For this release, use a built-in provider through `ExtractorConfig`. Check the p
 - Reading order and table continuation are best-effort analysis, not ground truth.
 - Continuation edges do not merge rows. Duplicate relations are not currently produced by the default pipeline.
 - Nodes require bounding boxes; extracted objects without them are omitted from the node list.
-- The command-line interface currently checks Azure credentials but configures PaddleOCR. Use the Python API to select the intended extraction provider explicitly.
+- The command-line interface uses the default Azure extractor and loads `.env`; the Python API uses Azure by default but does not load `.env` automatically.

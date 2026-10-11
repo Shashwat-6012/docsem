@@ -54,9 +54,9 @@ DOCSEM does **not** currently expose the broader semantic-section, document-clas
 - A supported extraction provider and its credentials/resources
 - A Gemini API key for the current default table-analysis pipeline
 
-DOCSEM's default installation includes the Azure and Gemini Python clients. PaddleOCR and llama.cpp are optional dependencies.
+DOCSEM's default installation includes the Azure and Gemini Python clients. The default extraction provider is Azure. PaddleOCR and llama.cpp are optional dependencies.
 
-**Important:** `DocSem()` with no configuration selects PaddleOCR, which is an optional dependency. With a standard `pip install docsem`, explicitly select Azure as shown below, or install `docsem[paddle]` before using the default configuration. The DocumentIR builder also initializes Gemini-backed table analyzers.
+`DocSem()` with no configuration selects Azure. It reads `AZURE_ENDPOINT` and `AZURE_API_KEY` from the environment when the corresponding extraction options are not supplied. Explicit `endpoint` and `api_key` options take precedence over those environment variables. The DocumentIR builder also initializes Gemini-backed table analyzers.
 
 ## Installation
 
@@ -213,7 +213,7 @@ docsem path/to/document.pdf --output result.json
 docsem path/to/document.pdf --debug
 ```
 
-**CLI limitation in this release:** the command currently checks for `AZURE_ENDPOINT` and `AZURE_API_KEY` but constructs a PaddleOCR extractor. It therefore also requires the `paddle` extra, and the Azure credentials are not used for extraction. Use the Python API examples above for an explicitly selected provider. The CLI behavior will be aligned in a future release.
+The CLI uses the default Azure extractor and reads `AZURE_ENDPOINT` and `AZURE_API_KEY` from the environment. It loads a `.env` file automatically. The Python API does not load `.env` files; set those environment variables in your application or pass the credentials in `ExtractorConfig` options. Default table analysis also uses Gemini and may require `GEMINI_API_KEY`.
 
 ## Configuration reference
 
@@ -221,10 +221,10 @@ docsem path/to/document.pdf --debug
 
 | Provider | Required installation | Options |
 | --- | --- | --- |
-| `ProviderName.AZURE` | Default install | `endpoint`, `api_key`; optional `model_id` (defaults to `prebuilt-document`) |
+| `ProviderName.AZURE` (default) | Default install | `endpoint`, `api_key` (fall back to `AZURE_ENDPOINT` and `AZURE_API_KEY`); optional `model_id` (defaults to `prebuilt-document`) |
 | `ProviderName.PADDLEOCR` | `docsem[paddle]` | Optional `lang` (defaults to `en`) and `use_gpu` (defaults to `False`) |
 
-Example Azure configuration:
+Azure credentials can be passed in options to override the environment values:
 
 ```python
 ExtractorConfig(
@@ -257,7 +257,7 @@ enable_default_logging(logging.INFO)
 - Python 3.12 and 3.13 are the versions declared by the package metadata.
 - `DocSem.process()` accepts a filesystem path (`str` or `pathlib.Path`); it does not currently accept raw bytes or an already-extracted result.
 - Extraction capabilities and supported file formats depend on the selected provider and its service/runtime.
-- The default DocumentIR builder instantiates a Gemini provider. Gemini-backed analysis can require `GEMINI_API_KEY`, even when extraction is performed locally.
+- The default analysis configuration uses Gemini and requires `GEMINI_API_KEY` when constructing `DocSem`. To use rules-only repairs without an LLM, set `analysis=AnalysisConfig(llm=None)` in `DocSemConfig`.
 - Table-analysis decisions are best-effort. Inspect relation confidence and metadata and validate extracted or repaired data for your use case.
 - Table continuation relations identify related table nodes; they do not merge their rows into one table.
 - Table structure repair may update the extracted table in place. The original values and repair details are recorded in `table.metadata["structure_repair"]` when a repair is attempted.
