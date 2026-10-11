@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -26,6 +27,8 @@ from .exceptions import (
 from .extraction.base import ExtractionInput
 from .extraction.factory import build_extractor
 from .ir.build import IRBuilder
+from .llm.base import LLMProvider
+from .llm.factory import LLMConfig
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +49,8 @@ class DocSem:
     def __init__(
         self,
         config: DocSemConfig | None = None,
+        *,
+        provider_factory: Callable[[LLMConfig], LLMProvider] | None = None,
     ) -> None:
         """
         Initialize the DocSem processing engine.
@@ -57,8 +62,11 @@ class DocSem:
             is used.
         """
         self.config = config or DocSemConfig.default()
+        self.builder = IRBuilder(
+            analysis_config=self.config.analysis,
+            provider_factory=provider_factory,
+        )
         self.extractor = build_extractor(self.config.extraction)
-        self.builder = IRBuilder()
 
     def process(self, source: str | Path) -> DocumentIR:
         """
