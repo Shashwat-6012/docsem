@@ -7,20 +7,13 @@ remaining independent of concrete implementation libraries.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
 from .exceptions import ConfigurationError
 from .extraction.factory import ExtractorConfig, ProviderName
-
-ExtractionMode = Literal[
-    "auto",
-    "text",
-    "ocr",
-    "layout",
-]
-
+from .llm.factory import DEFAULT_LLM, LLMConfig
 
 ArtifactStoreType = Literal["file", "redis"]
 
@@ -51,6 +44,17 @@ class DebugConfig:
             )
 
 
+# config.py
+@dataclass(frozen=True)
+class AnalysisConfig:
+    llm: LLMConfig | None = field(default_factory=lambda: DEFAULT_LLM)
+    overrides: dict[str, LLMConfig | None] = field(default_factory=dict)  # keyed by Analyzer.name
+    enabled: tuple[str, ...] = ("table_structure", "table_continuation")
+
+    def llm_for(self, analyzer_name: str) -> LLMConfig | None:
+        return self.overrides.get(analyzer_name, self.llm)
+
+
 @dataclass(frozen=True)
 class DocSemConfig:
     """
@@ -65,6 +69,7 @@ class DocSemConfig:
     """
 
     extraction: ExtractorConfig
+    analysis: AnalysisConfig = AnalysisConfig()
 
     debug: DebugConfig = DebugConfig()
 
@@ -73,10 +78,11 @@ class DocSemConfig:
         """Return the default configuration."""
         return cls(
             extraction=ExtractorConfig(
-                provider=ProviderName.PADDLEOCR,
-                options={
-                    "lang": "en",
-                    "use_gpu": False,
-                },
-            )
+                provider=ProviderName.AZURE,
+            ),
+            analysis=AnalysisConfig(
+                llm=DEFAULT_LLM,
+                overrides={},
+                enabled=("table_structure", "table_continuation"),
+            ),
         )
