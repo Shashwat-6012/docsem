@@ -21,7 +21,7 @@ and this project follows Semantic Versioning.
 
 ---
 
-## [0.1.0] - 2026-XX-XX
+## [0.1.0a1] - 2026-10-10
 
 ### Added
 
