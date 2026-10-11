@@ -1,6 +1,6 @@
 [project]
 name = "docsem"
-version = "0.1.0"
+version = "0.1.0a1"
 description = "A python module that converts input documents into Standardized Representations"
 readme = "README.md"
 license = "MIT"
